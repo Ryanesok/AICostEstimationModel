@@ -1,0 +1,38 @@
+# OpenSpec v2: AI-Based Software Cost Estimator (Multi-Dataset Pipeline & Offline GUI)
+
+## 1. Project Overview
+Tujuan proyek ini adalah membangun sistem pendukung keputusan (Decision Support System) berbasis kecerdasan buatan untuk estimasi biaya pengembangan perangkat lunak. Sistem ini menggunakan arsitektur modular yang memisahkan proses pengunduhan dataset otomatis, pelatihan model massal, dan antarmuka desktop luring (offline) untuk manajer proyek.
+
+## 2. Tech Stack
+* **Language:** Python 3.10+
+* **Machine Learning:** `scikit-learn`, `pandas`, `numpy` (Model: SVR & Linear Regression)
+* **GUI Framework:** `customtkinter` (CTk)
+* **Data Retrieval:** `urllib` atau `requests`
+
+## 3. Architecture & Core Components
+Implementasikan sistem ini ke dalam tiga skrip utama yang terpisah (Separation of Concerns):
+
+### A. Data Downloader (`downloader.py`) & Config (`datasets.txt`)
+* **Tugas:** Membaca tautan raw CSV dari file `datasets.txt`, mengunduhnya, dan menyimpannya secara otomatis ke dalam folder `data/`.
+* **Logika Non-Destructive:** Terapkan blok `try-except`. Jika pengunduhan gagal karena masalah jaringan, skrip tidak boleh *crash*. Pastikan skrip mengekstrak nama file langsung dari URL (misalnya dari `.../cocomo81.csv` menjadi `cocomo81.csv`).
+
+### B. Training Pipeline (`model_pipeline.py`)
+* **Tugas:** Membaca semua file `.csv` yang ada di folder `data/` dan melatih model secara massal.
+* **Mapping Dictionary:** Buat konfigurasi kamus di dalam skrip untuk menangani perbedaan struktur kolom antar dataset. Contoh: COCOMO81 menggunakan target `Actual_Effort`, sedangkan Desharnais menggunakan target `Effort`. Program harus tahu secara otomatis mana yang menjadi target (y) dan fitur (X) berdasarkan nama file.
+* **Proses Latih:** Lakukan pra-pemrosesan (handling missing values, StandardScaler). Latih model SVR (Support Vector Regression) dan Linear Regression untuk setiap dataset.
+* **Export:** Simpan setiap model yang berhasil dilatih ke dalam folder `models/` dengan format penamaan yang jelas (contoh: `svr_cocomo81.pkl`, `linreg_desharnais.pkl`).
+
+### C. Desktop GUI Application (`app.py`)
+* **Tugas:** Menyediakan antarmuka interaktif yang berjalan 100% luring dengan membaca model dari folder `models/`.
+* **Model Selector:** Sediakan `CTkOptionMenu` (dropdown) agar manajer proyek bisa memilih model/dataset mana yang ingin digunakan (misal: "Model COCOMO", "Model Desharnais"). Saat model dipilih, form input harus menyesuaikan secara dinamis (atau setidaknya menangani input yang sesuai dengan fitur model tersebut).
+* **UI/UX Guidelines:** * Wajib menggunakan tema gelap (*dark theme*) dengan warna *muted* (misalnya abu-abu tua `gray17`) agar tidak over-stimulating dan ramah di mata untuk penggunaan jangka panjang.
+  * Terapkan logika operasional *undo-able* / *non-destructive*: sediakan tombol "Reset" untuk membersihkan form tanpa harus merestart aplikasi.
+  * Tampilkan output "Person-Months", lalu sediakan kalkulator kecil di dalam UI untuk mengonversi nilai Person-Months tersebut menjadi "Total Estimasi Biaya (Rupiah)" (berdasarkan input rata-rata gaji) dan "Kebutuhan Anggota Tim" (berdasarkan input target waktu).
+
+## 4. Execution Steps for Claude Code
+Tolong eksekusi dengan urutan logis berikut:
+1. Buat struktur folder proyek (`data/`, `models/`) dan file `requirements.txt`.
+2. Tulis `datasets.txt` (isi dengan dummy link raw CSV) dan `downloader.py`.
+3. Tulis `model_pipeline.py` lengkap dengan *Mapping Dictionary* untuk menangani dataset yang berbeda.
+4. Tulis `app.py` menggunakan CustomTkinter dengan desain yang terstruktur dan responsif.
+5. Berikan panduan singkat cara menjalankan urutan skripnya di terminal.

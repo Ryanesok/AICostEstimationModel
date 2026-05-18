@@ -1,0 +1,426 @@
+# Dataset configuration for model_pipeline.py and app.py
+#
+# Each entry maps a CSV filename stem (lowercase) to:
+#   features:     list of input columns (must match CSV column names exactly, order matters for model)
+#   target:       output column to predict
+#   effort_unit:  unit of the target column — "person-months" or "person-hours"
+#                 app.py akan otomatis mengonversi person-hours ke person-months (÷ 160)
+#   labels:       (optional) friendly display names for each feature column in the GUI
+#   hints:        (optional) helper text shown below each input field in the GUI
+#
+# Run auto_configure.py to automatically add new datasets from the data/ folder.
+
+datasets:
+  cocomo-81:
+    effort_unit: person-months
+    features:
+    - rely
+    - data
+    - cplx
+    - time
+    - stor
+    - virt
+    - turn
+    - acap
+    - aexp
+    - pcap
+    - vexp
+    - lexp
+    - modp
+    - tool
+    - sced
+    - loc
+    target: actual
+    labels:
+      rely: "Reliability (Rely)"
+      data: "Database Size (Data)"
+      cplx: "Complexity (Cplx)"
+      time: "Time Constraint (Time)"
+      stor: "Storage Constraint (Stor)"
+      virt: "VM Volatility (Virt)"
+      turn: "Turnaround Time (Turn)"
+      acap: "Analyst Capability (Acap)"
+      aexp: "App Experience (Aexp)"
+      pcap: "Programmer Capability (Pcap)"
+      vexp: "VM Experience (Vexp)"
+      lexp: "Language Experience (Lexp)"
+      modp: "Modern Programming (Modp)"
+      tool: "Software Tools (Tool)"
+      sced: "Schedule (Sced)"
+      loc: "LOC (ribuan baris)"
+    hints:
+      rely: "Reliabilitas yang dibutuhkan: 0.75 (rendah) | 1.00 (nominal) | 1.15 (tinggi) | 1.40 (sangat tinggi)"
+      data: "Rasio ukuran database: 0.94 (kecil) | 1.00 (nominal) | 1.08 (besar) | 1.16 (sangat besar)"
+      cplx: "Kompleksitas produk: 0.70 (rendah) | 1.00 (nominal) | 1.30 (tinggi) | 1.65 (sangat tinggi)"
+      time: "Batasan waktu eksekusi CPU: 1.00 (nominal) | 1.11 (sedikit) | 1.30 (sedang) | 1.66 (ekstrem)"
+      stor: "Batasan memori utama: 1.00 (nominal) | 1.06 (sedikit) | 1.21 (sedang) | 1.56 (ekstrem)"
+      virt: "Keberubahan mesin virtual: 0.87 (rendah) | 1.00 (nominal) | 1.15 (sedang) | 1.30 (tinggi)"
+      turn: "Waktu respons komputer: 0.87 (cepat) | 1.00 (nominal) | 1.07 (sedang) | 1.15 (lambat)"
+      acap: "Kemampuan analis: 1.46 (sangat tinggi) | 1.19 (tinggi) | 1.00 (nominal) | 0.86 (rendah) | 0.71 (sangat rendah)"
+      aexp: "Pengalaman di domain aplikasi: 1.29 (berpengalaman) | 1.00 (nominal) | 0.91 (sedikit) | 0.82 (baru)"
+      pcap: "Kemampuan programmer: 1.42 (sangat tinggi) | 1.17 (tinggi) | 1.00 (nominal) | 0.86 (rendah) | 0.70 (sangat rendah)"
+      vexp: "Pengalaman mesin virtual: 1.21 (< 6 bln) | 1.10 (6 bln) | 1.00 (1 thn) | 0.90 (3+ thn)"
+      lexp: "Pengalaman bahasa pemrograman: 1.14 (< 6 bln) | 1.07 (6 bln) | 1.00 (1 thn) | 0.95 (3+ thn)"
+      modp: "Praktik pemrograman modern: 1.24 (sangat rendah) | 1.00 (nominal) | 0.91 (tinggi) | 0.82 (sangat tinggi)"
+      tool: "Penggunaan alat bantu SW: 1.24 (manual) | 1.10 (dasar) | 1.00 (nominal) | 0.91 (kuat) | 0.83 (canggih)"
+      sced: "Target jadwal: 1.23 (dipercepat 75%) | 1.08 (90%) | 1.00 (nominal) | 1.04 (130%) | 1.10 (160%)"
+      loc: "Ukuran perangkat lunak dalam ribuan baris kode. Contoh: 30 = 30.000 baris"
+    sliders:
+      rely:
+        values: [0.75, 0.88, 1.00, 1.15, 1.40]
+        default: 1.00
+      data:
+        values: [0.94, 1.00, 1.08, 1.16]
+        default: 1.00
+      cplx:
+        values: [0.70, 0.85, 1.00, 1.15, 1.30, 1.65]
+        default: 1.00
+      time:
+        values: [1.00, 1.11, 1.30, 1.66]
+        default: 1.00
+      stor:
+        values: [1.00, 1.06, 1.21, 1.56]
+        default: 1.00
+      virt:
+        values: [0.87, 1.00, 1.15, 1.30]
+        default: 1.00
+      turn:
+        values: [0.87, 1.00, 1.07, 1.15]
+        default: 1.00
+      acap:
+        values: [0.71, 0.86, 1.00, 1.19, 1.46]
+        default: 1.00
+      aexp:
+        values: [0.82, 0.91, 1.00, 1.13, 1.29]
+        default: 1.00
+      pcap:
+        values: [0.70, 0.86, 1.00, 1.17, 1.42]
+        default: 1.00
+      vexp:
+        values: [0.90, 1.00, 1.10, 1.21]
+        default: 1.00
+      lexp:
+        values: [0.95, 1.00, 1.07, 1.14]
+        default: 1.00
+      modp:
+        values: [0.82, 0.91, 1.00, 1.10, 1.24]
+        default: 1.00
+      tool:
+        values: [0.83, 0.91, 1.00, 1.10, 1.24]
+        default: 1.00
+      sced:
+        values: [1.00, 1.04, 1.08, 1.10, 1.23]
+        default: 1.00
+      loc:
+        min: 1.0
+        max: 2000.0
+        step: 1.0
+        default: 30.0
+
+  desharnais:
+    effort_unit: person-hours
+    features:
+    - TeamExp
+    - ManagerExp
+    - Length
+    - Transactions
+    - Entities
+    target: Effort
+    labels:
+      TeamExp: "Team Experience (tahun)"
+      ManagerExp: "Manager Experience (tahun)"
+      Length: "Project Length (bulan)"
+      Transactions: "Transactions"
+      Entities: "Entities"
+    hints:
+      TeamExp: "Pengalaman rata-rata tim dalam tahun. Contoh: 3"
+      ManagerExp: "Pengalaman manajer proyek dalam tahun. Contoh: 5"
+      Length: "Durasi proyek aktual dalam bulan. Contoh: 12"
+      Transactions: "Jumlah transaksi fungsional. Contoh: 50"
+      Entities: "Jumlah entitas data. Contoh: 30"
+    sliders:
+      TeamExp:
+        min: 0.0
+        max: 15.0
+        step: 1.0
+        default: 5.0
+      ManagerExp:
+        min: 0.0
+        max: 15.0
+        step: 1.0
+        default: 5.0
+      Length:
+        min: 1.0
+        max: 60.0
+        step: 1.0
+        default: 12.0
+
+  china:
+    effort_unit: person-hours
+    features:
+    - AFP
+    - Input
+    - Output
+    - Enquiry
+    - File
+    - Interface
+    - Added
+    - Changed
+    - Deleted
+    - PDR_AFP
+    - PDR_UFP
+    - NPDR_AFP
+    - NPDU_UFP
+    - Resource
+    - Dev.Type
+    - N_effort
+    - Effort
+    target: Duration
+    labels:
+      AFP: "Adjusted Function Points (AFP)"
+      Input: "External Inputs (EI)"
+      Output: "External Outputs (EO)"
+      Enquiry: "External Enquiries (EQ)"
+      File: "Internal Logical Files (ILF)"
+      Interface: "External Interface Files (EIF)"
+      Added: "Function Points Ditambahkan"
+      Changed: "Function Points Diubah"
+      Deleted: "Function Points Dihapus"
+      PDR_AFP: "PDR Adjusted FP"
+      PDR_UFP: "PDR Unadjusted FP"
+      NPDR_AFP: "Non-PDR Adjusted FP"
+      NPDU_UFP: "Non-PDR Unadjusted FP"
+      Resource: "Jumlah Resource Tim"
+      Dev.Type: "Tipe Pengembangan"
+      N_effort: "Normalized Effort"
+      Effort: "Total Effort (person-hours)"
+    hints:
+      AFP: "Jumlah Adjusted Function Points. Contoh: 215"
+      Input: "Jumlah External Input (transaksi input dari user/sistem luar). Contoh: 63"
+      Output: "Jumlah External Output (laporan/transaksi output). Contoh: 42"
+      Enquiry: "Jumlah External Enquiry (query tanpa update data). Contoh: 24"
+      File: "Jumlah Internal Logical File (kelompok data yang dikelola sistem). Contoh: 36"
+      Interface: "Jumlah External Interface File (data dari sistem luar). Contoh: 0"
+      Added: "Function Points baru yang ditambahkan. Contoh: 135"
+      Changed: "Function Points yang dimodifikasi. Contoh: 4"
+      Deleted: "Function Points yang dihapus. Contoh: 0"
+      PDR_AFP: "PDR Adjusted Function Points (rasio AFP). Contoh: 8.1"
+      PDR_UFP: "PDR Unadjusted Function Points (rasio UFP). Contoh: 8.0"
+      NPDR_AFP: "Non-PDR Adjusted Function Points. Contoh: 8.8"
+      NPDU_UFP: "Non-PDR Unadjusted Function Points. Contoh: 8.9"
+      Resource: "Jumlah resource/tim: 1 (kecil) | 2 (sedang) | 3 (besar) | 4 (sangat besar)"
+      Dev.Type: "Tipe pengembangan. Dalam dataset ini selalu 0 (pengembangan baru)"
+      N_effort: "Normalized effort (person-hours ternormalisasi). Contoh: 2098"
+      Effort: "Total effort aktual dalam person-hours. Contoh: 1829"
+    sliders:
+      Resource:
+        min: 1.0
+        max: 4.0
+        step: 1.0
+        default: 1.0
+
+  maxwell:
+    effort_unit: person-hours
+    labels:
+      Syear: "Tahun Survey"
+      App: "Tipe Aplikasi"
+      Har: "Kategori Hardware"
+      Dba: "Keterlibatan DBA"
+      Ifc: "Tipe Interface"
+      Source: "Tipe Source Code"
+      Telonuse: "Penggunaan Telon"
+      Nlan: "Jumlah Bahasa Pemrograman"
+      T01: "Faktor T01: Perangkat CASE"
+      T02: "Faktor T02: Bahasa 4GL"
+      T03: "Faktor T03: Code Generator"
+      T04: "Faktor T04: Change Management"
+      T05: "Faktor T05: Requirements Tool"
+      T06: "Faktor T06: Prototyping"
+      T07: "Faktor T07: Data Dictionary"
+      T08: "Faktor T08: Reverse Engineering"
+      T09: "Faktor T09: Component Library"
+      T10: "Faktor T10: Test Automation"
+      T11: "Faktor T11: Structured Analysis"
+      T12: "Faktor T12: Design Tools"
+      T13: "Faktor T13: Network/Comm Tools"
+      T14: "Faktor T14: Hardware Emulation"
+      T15: "Faktor T15: Software Tools Lain"
+      Size: "Ukuran Fungsional (FP)"
+      Time: "Durasi Pengembangan (bulan)"
+      Effort: "Total Effort (person-hours)"
+    hints:
+      Syear: "Tahun survei proyek: 85 (1985) hingga 93 (1993)"
+      App: "Tipe aplikasi: 1=MIS | 2=Realtime | 3=Matematika | 4=Support | 5=Telekomunikasi"
+      Har: "Kategori hardware: 1=PC | 2=Mini | 3=Mid-range | 4=Mainframe | 5=Multi-platform"
+      Dba: "Tingkat keterlibatan DBA: 0=tidak ada | 1=rendah | 2=sedang | 3=tinggi | 4=sangat tinggi"
+      Ifc: "Tipe interface: 1=standalone | 2=terintegrasi/terhubung sistem lain"
+      Source: "Tipe source code: 1=baru | 2=enhancement dari kode yang ada"
+      Telonuse: "Penggunaan alat Telon: 0=tidak | 1=ya"
+      Nlan: "Jumlah bahasa pemrograman yang digunakan: 1 | 2 | 3 | 4"
+      T01: "Skor penggunaan perangkat CASE: 1=sangat rendah hingga 5=sangat tinggi"
+      T02: "Skor penggunaan bahasa 4GL: 1=sangat rendah hingga 5=sangat tinggi"
+      T03: "Skor penggunaan code generator: 1=sangat rendah hingga 5=sangat tinggi"
+      T04: "Skor penggunaan change management tools: 1=sangat rendah hingga 5=sangat tinggi"
+      T05: "Skor penggunaan requirements tool: 1=sangat rendah hingga 5=sangat tinggi"
+      T06: "Skor penggunaan prototyping: 1=sangat rendah hingga 5=sangat tinggi"
+      T07: "Skor penggunaan data dictionary: 1=sangat rendah hingga 5=sangat tinggi"
+      T08: "Skor penggunaan reverse engineering: 1=sangat rendah hingga 5=sangat tinggi"
+      T09: "Skor penggunaan component/reuse library: 1=sangat rendah hingga 5=sangat tinggi"
+      T10: "Skor penggunaan test automation tools: 1=sangat rendah hingga 5=sangat tinggi"
+      T11: "Skor penggunaan structured analysis: 1=sangat rendah hingga 5=sangat tinggi"
+      T12: "Skor penggunaan design tools: 1=sangat rendah hingga 5=sangat tinggi"
+      T13: "Skor penggunaan network/communication tools: 1=sangat rendah hingga 5=sangat tinggi"
+      T14: "Skor penggunaan hardware emulation: 1=sangat rendah hingga 5=sangat tinggi"
+      T15: "Skor penggunaan software tools lain: 1=sangat rendah hingga 5=sangat tinggi"
+      Size: "Ukuran fungsional dalam Function Points. Contoh: 385"
+      Time: "Durasi pengembangan dalam bulan. Contoh: 6"
+      Effort: "Total effort aktual dalam person-hours. Contoh: 5190"
+    features:
+    - Syear
+    - App
+    - Har
+    - Dba
+    - Ifc
+    - Source
+    - Telonuse
+    - Nlan
+    - T01
+    - T02
+    - T03
+    - T04
+    - T05
+    - T06
+    - T07
+    - T08
+    - T09
+    - T10
+    - T11
+    - T12
+    - T13
+    - T14
+    - T15
+    - Size
+    - Time
+    - Effort
+    target: Duration
+    sliders:
+      Syear:
+        min: 85.0
+        max: 93.0
+        step: 1.0
+        default: 90.0
+      App:
+        min: 1.0
+        max: 5.0
+        step: 1.0
+        default: 2.0
+      Har:
+        min: 1.0
+        max: 5.0
+        step: 1.0
+        default: 2.0
+      Dba:
+        min: 0.0
+        max: 4.0
+        step: 1.0
+        default: 1.0
+      Ifc:
+        min: 1.0
+        max: 2.0
+        step: 1.0
+        default: 2.0
+      Source:
+        min: 1.0
+        max: 2.0
+        step: 1.0
+        default: 2.0
+      Telonuse:
+        min: 0.0
+        max: 1.0
+        step: 1.0
+        default: 0.0
+      Nlan:
+        min: 1.0
+        max: 4.0
+        step: 1.0
+        default: 3.0
+      T01:
+        min: 1.0
+        max: 5.0
+        step: 1.0
+        default: 3.0
+      T02:
+        min: 1.0
+        max: 5.0
+        step: 1.0
+        default: 3.0
+      T03:
+        min: 1.0
+        max: 5.0
+        step: 1.0
+        default: 3.0
+      T04:
+        min: 1.0
+        max: 5.0
+        step: 1.0
+        default: 3.0
+      T05:
+        min: 1.0
+        max: 5.0
+        step: 1.0
+        default: 3.0
+      T06:
+        min: 1.0
+        max: 5.0
+        step: 1.0
+        default: 3.0
+      T07:
+        min: 1.0
+        max: 5.0
+        step: 1.0
+        default: 3.0
+      T08:
+        min: 1.0
+        max: 5.0
+        step: 1.0
+        default: 3.0
+      T09:
+        min: 1.0
+        max: 5.0
+        step: 1.0
+        default: 3.0
+      T10:
+        min: 1.0
+        max: 5.0
+        step: 1.0
+        default: 3.0
+      T11:
+        min: 1.0
+        max: 5.0
+        step: 1.0
+        default: 3.0
+      T12:
+        min: 1.0
+        max: 5.0
+        step: 1.0
+        default: 3.0
+      T13:
+        min: 1.0
+        max: 5.0
+        step: 1.0
+        default: 3.0
+      T14:
+        min: 1.0
+        max: 5.0
+        step: 1.0
+        default: 3.0
+      T15:
+        min: 1.0
+        max: 5.0
+        step: 1.0
+        default: 3.0
+      Time:
+        min: 1.0
+        max: 9.0
+        step: 1.0
+        default: 6.0

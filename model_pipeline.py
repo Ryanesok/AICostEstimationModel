@@ -1,18 +1,26 @@
 import glob
+import json
 import os
 
 import joblib
+import numpy as np
 import pandas as pd
 import yaml
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_absolute_error, r2_score
-from sklearn.model_selection import train_test_split
+from sklearn.metrics import make_scorer, mean_absolute_error
+from sklearn.model_selection import GridSearchCV, KFold, cross_validate
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
 
 DATA_DIR = "data"
 MODELS_DIR = "models"
 CONFIG_FILE = "dataset_config.yaml"
+
+GRID_PARAMS = {
+    "C": [0.1, 1, 10, 100],
+    "epsilon": [0.01, 0.1, 1.0],
+    "kernel": ["rbf", "linear"],
+}
 
 
 def load_config() -> dict[str, dict]:
@@ -34,34 +42,50 @@ def load_dataset(csv_path: str) -> pd.DataFrame:
 
 def preprocess(df: pd.DataFrame, features: list[str], target: str):
     df = df[features + [target]].dropna()
-    if len(df) < 5:
-        raise ValueError(f"Dataset has only {len(df)} usable rows after dropping NaN — too few to train.")
+    if len(df) < 10:
+        raise ValueError(
+            f"Dataset has only {len(df)} usable rows after dropping NaN — "
+            "cross-validation membutuhkan minimal 10 baris."
+        )
     X = df[features].values
     y = df[target].values
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
-    )
     scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train)
-    X_test = scaler.transform(X_test)
-    return X_train, X_test, y_train, y_test, scaler
+    X_scaled = scaler.fit_transform(X)
+    return X_scaled, y, scaler
 
 
-def train_models(X_train, y_train) -> tuple:
-    svr = SVR(kernel="rbf")
-    svr.fit(X_train, y_train)
-    lr = LinearRegression()
-    lr.fit(X_train, y_train)
-    return svr, lr
+def evaluate_models(X: np.ndarray, y: np.ndarray) -> dict:
+    kfold = KFold(n_splits=5, shuffle=True, random_state=42)
+    scoring = {
+        "mae": make_scorer(mean_absolute_error, greater_is_better=False),
+        "r2": "r2",
+    }
+
+    gs = GridSearchCV(
+        SVR(), GRID_PARAMS, cv=kfold,
+        scoring="neg_mean_absolute_error", n_jobs=-1,
+    )
+    gs.fit(X, y)
+
+    svr_cv = cross_validate(gs.best_estimator_, X, y, cv=kfold, scoring=scoring)
+    lr_cv = cross_validate(LinearRegression(), X, y, cv=kfold, scoring=scoring)
+
+    return {
+        "best_svr_params": gs.best_params_,
+        "cv_mae_mean": float(-svr_cv["test_mae"].mean()),
+        "cv_mae_std": float(svr_cv["test_mae"].std()),
+        "cv_r2_mean": float(svr_cv["test_r2"].mean()),
+        "cv_r2_std": float(svr_cv["test_r2"].std()),
+        "lr_cv_mae_mean": float(-lr_cv["test_mae"].mean()),
+        "lr_cv_r2_mean": float(lr_cv["test_r2"].mean()),
+    }
 
 
-def evaluate(stem: str, models: dict, X_test, y_test) -> None:
-    print(f"\n  [{stem}] --- Evaluation (Test Set) ---")
-    for name, model in models.items():
-        preds = model.predict(X_test)
-        mae = mean_absolute_error(y_test, preds)
-        r2 = r2_score(y_test, preds)
-        print(f"  [{stem}] {name:20s}  MAE={mae:.2f}  R2={r2:.4f}")
+def save_metrics(stem: str, metrics: dict) -> None:
+    os.makedirs(MODELS_DIR, exist_ok=True)
+    path = os.path.join(MODELS_DIR, f"{stem}_metrics.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(metrics, f, indent=2)
 
 
 def train_and_export(csv_path: str) -> bool:
@@ -74,9 +98,21 @@ def train_and_export(csv_path: str) -> bool:
 
     try:
         df = load_dataset(csv_path)
-        X_train, X_test, y_train, y_test, scaler = preprocess(
-            df, config["features"], config["target"]
-        )
+    except Exception as exc:
+        print(f"[WARNING] Gagal membaca '{os.path.basename(csv_path)}': {exc} — skipping.")
+        return False
+
+    if config["target"] not in df.columns:
+        print(f"[WARNING] Primary target column '{config['target']}' tidak ditemukan di '{os.path.basename(csv_path)}' — skipping.")
+        print(f"          Periksa 'target' di '{CONFIG_FILE}' untuk '{stem}'.")
+        return False
+
+    # Exclude secondary_target from features at runtime (guard against stale configs)
+    secondary = config.get("secondary_target")
+    features = [f for f in config["features"] if f != secondary]
+
+    try:
+        X, y, scaler = preprocess(df, features, config["target"])
     except KeyError as exc:
         print(f"[WARNING] Column {exc} not found in '{os.path.basename(csv_path)}' — skipping.")
         print(f"          Check 'features' and 'target' in '{CONFIG_FILE}' for '{stem}'.")
@@ -85,28 +121,41 @@ def train_and_export(csv_path: str) -> bool:
         print(f"[WARNING] {exc} — skipping '{stem}'.")
         return False
 
-    svr, lr = train_models(X_train, y_train)
-    evaluate(stem, {"SVR": svr, "LinearRegression": lr}, X_test, y_test)
+    print(f"  [{stem}] Menjalankan 5-fold CV + GridSearchCV ({len(y)} baris) ...")
+    metrics = evaluate_models(X, y)
+    metrics["trained_on_rows"] = int(len(y))
+
+    print(f"  [{stem}] SVR  CV-MAE={metrics['cv_mae_mean']:.2f} ± {metrics['cv_mae_std']:.2f}  CV-R²={metrics['cv_r2_mean']:.4f} ± {metrics['cv_r2_std']:.4f}")
+    print(f"  [{stem}] LR   CV-MAE={metrics['lr_cv_mae_mean']:.2f}  CV-R²={metrics['lr_cv_r2_mean']:.4f}")
+    print(f"  [{stem}] Best SVR params: {metrics['best_svr_params']}")
+
+    final_svr = SVR(**metrics["best_svr_params"])
+    final_svr.fit(X, y)
+    final_lr = LinearRegression()
+    final_lr.fit(X, y)
 
     os.makedirs(MODELS_DIR, exist_ok=True)
-    joblib.dump(svr, os.path.join(MODELS_DIR, f"svr_{stem}.pkl"))
-    joblib.dump(lr, os.path.join(MODELS_DIR, f"linreg_{stem}.pkl"))
+    joblib.dump(final_svr, os.path.join(MODELS_DIR, f"svr_{stem}.pkl"))
+    joblib.dump(final_lr, os.path.join(MODELS_DIR, f"linreg_{stem}.pkl"))
     joblib.dump(scaler, os.path.join(MODELS_DIR, f"scaler_{stem}.pkl"))
-    print(f"  [{stem}] Exported: svr_{stem}.pkl | linreg_{stem}.pkl | scaler_{stem}.pkl")
+    save_metrics(stem, metrics)
+    print(f"  [{stem}] Exported: svr_{stem}.pkl | linreg_{stem}.pkl | scaler_{stem}.pkl | {stem}_metrics.json")
     return True
 
 
 def cleanup_stale_models(trained_stems: set) -> int:
-    """Delete .pkl trios in models/ whose stem is not in trained_stems. Returns count removed."""
     existing_svr = glob.glob(os.path.join(MODELS_DIR, "svr_*.pkl"))
     removed = 0
     for svr_path in existing_svr:
-        stem = os.path.basename(svr_path)[4:-4]  # strip "svr_" prefix and ".pkl"
+        stem = os.path.basename(svr_path)[4:-4]
         if stem not in trained_stems:
             for prefix in ("svr_", "linreg_", "scaler_"):
                 p = os.path.join(MODELS_DIR, f"{prefix}{stem}.pkl")
                 if os.path.exists(p):
                     os.remove(p)
+            metrics_path = os.path.join(MODELS_DIR, f"{stem}_metrics.json")
+            if os.path.exists(metrics_path):
+                os.remove(metrics_path)
             print(f"  [CLEANUP] Removed stale model trio for '{stem}'.")
             removed += 1
     return removed

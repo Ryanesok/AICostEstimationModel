@@ -5,12 +5,17 @@ import os
 import joblib
 import numpy as np
 import pandas as pd
+import torch
+import torch.nn as nn
 import yaml
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import make_scorer, mean_absolute_error
 from sklearn.model_selection import GridSearchCV, KFold, cross_validate
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
+from torch.utils.data import DataLoader, TensorDataset
+from xgboost import XGBRegressor
 
 DATA_DIR = "data"
 MODELS_DIR = "models"
@@ -22,6 +27,28 @@ GRID_PARAMS = {
     "kernel": ["rbf", "linear"],
 }
 
+XGB_GRID_PARAMS = {
+    "n_estimators": [100, 300],
+    "max_depth": [3, 5],
+    "learning_rate": [0.05, 0.1],
+}
+
+
+# ── Model definitions ──────────────────────────────────────────────────────────
+
+class LSTMModel(nn.Module):
+    def __init__(self, input_size: int, hidden_size: int = 32):
+        super().__init__()
+        self.lstm = nn.LSTM(input_size, hidden_size, batch_first=True)
+        self.fc = nn.Linear(hidden_size, 1)
+
+    def forward(self, x):
+        # x: (batch, seq_len=1, input_size)
+        out, _ = self.lstm(x)
+        return self.fc(out[:, -1, :]).squeeze(1)
+
+
+# ── Config helpers ─────────────────────────────────────────────────────────────
 
 def load_config() -> dict[str, dict]:
     if not os.path.exists(CONFIG_FILE):
@@ -40,6 +67,8 @@ def load_dataset(csv_path: str) -> pd.DataFrame:
     return pd.read_csv(csv_path)
 
 
+# ── Preprocessing ──────────────────────────────────────────────────────────────
+
 def preprocess(df: pd.DataFrame, features: list[str], target: str):
     df = df[features + [target]].dropna()
     if len(df) < 10:
@@ -52,6 +81,102 @@ def preprocess(df: pd.DataFrame, features: list[str], target: str):
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
     return X_scaled, y, scaler
+
+
+# ── Training functions ─────────────────────────────────────────────────────────
+
+def train_rf(X: np.ndarray, y: np.ndarray) -> RandomForestRegressor:
+    model = RandomForestRegressor(n_estimators=200, random_state=42)
+    model.fit(X, y)
+    return model
+
+
+def train_xgb(X: np.ndarray, y: np.ndarray, kfold: KFold):
+    gs = GridSearchCV(
+        XGBRegressor(random_state=42, verbosity=0),
+        XGB_GRID_PARAMS,
+        cv=kfold,
+        scoring="neg_mean_absolute_error",
+        n_jobs=-1,
+    )
+    gs.fit(X, y)
+    return gs.best_estimator_, gs.best_params_
+
+
+def train_lstm(
+    X: np.ndarray,
+    y: np.ndarray,
+    input_size: int,
+    epochs: int = 200,
+    patience: int = 20,
+) -> LSTMModel:
+    val_size = max(1, int(len(X) * 0.2))
+    X_tr, X_val = X[:-val_size], X[-val_size:]
+    y_tr, y_val = y[:-val_size], y[-val_size:]
+
+    def to_tensor(arr):
+        return torch.tensor(arr, dtype=torch.float32)
+
+    X_tr_t = to_tensor(X_tr).unsqueeze(1)
+    y_tr_t = to_tensor(y_tr)
+    X_val_t = to_tensor(X_val).unsqueeze(1)
+    y_val_t = to_tensor(y_val)
+
+    loader = DataLoader(
+        TensorDataset(X_tr_t, y_tr_t), batch_size=16, shuffle=True
+    )
+
+    model = LSTMModel(input_size)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    criterion = nn.MSELoss()
+
+    best_val_loss = float("inf")
+    best_state = None
+    wait = 0
+
+    model.train()
+    for epoch in range(epochs):
+        for xb, yb in loader:
+            optimizer.zero_grad()
+            loss = criterion(model(xb), yb)
+            loss.backward()
+            optimizer.step()
+
+        model.eval()
+        with torch.no_grad():
+            val_loss = criterion(model(X_val_t), y_val_t).item()
+        model.train()
+
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            best_state = {k: v.clone() for k, v in model.state_dict().items()}
+            wait = 0
+        else:
+            wait += 1
+            if wait >= patience:
+                break
+
+    if best_state is not None:
+        model.load_state_dict(best_state)
+    model.eval()
+    return model
+
+
+# ── Evaluation ─────────────────────────────────────────────────────────────────
+
+def _lstm_cv_scores(X: np.ndarray, y: np.ndarray, kfold: KFold) -> tuple[float, float]:
+    mae_scores, r2_scores = [], []
+    for train_idx, val_idx in kfold.split(X):
+        X_tr, X_val = X[train_idx], X[val_idx]
+        y_tr, y_val = y[train_idx], y[val_idx]
+        m = train_lstm(X_tr, y_tr, input_size=X_tr.shape[1])
+        with torch.no_grad():
+            preds = m(torch.tensor(X_val, dtype=torch.float32).unsqueeze(1)).numpy()
+        mae_scores.append(mean_absolute_error(y_val, preds))
+        ss_res = np.sum((y_val - preds) ** 2)
+        ss_tot = np.sum((y_val - y_val.mean()) ** 2)
+        r2_scores.append(1 - ss_res / ss_tot if ss_tot > 0 else 0.0)
+    return float(np.mean(mae_scores)), float(np.mean(r2_scores))
 
 
 def evaluate_models(X: np.ndarray, y: np.ndarray) -> dict:
@@ -69,6 +194,25 @@ def evaluate_models(X: np.ndarray, y: np.ndarray) -> dict:
 
     svr_cv = cross_validate(gs.best_estimator_, X, y, cv=kfold, scoring=scoring)
     lr_cv = cross_validate(LinearRegression(), X, y, cv=kfold, scoring=scoring)
+    rf_cv = cross_validate(RandomForestRegressor(n_estimators=200, random_state=42), X, y, cv=kfold, scoring=scoring)
+    _, xgb_best_params = train_xgb(X, y, kfold)
+    xgb_cv = cross_validate(XGBRegressor(random_state=42, verbosity=0, **xgb_best_params), X, y, cv=kfold, scoring=scoring)
+    lstm_cv_mae, lstm_cv_r2 = _lstm_cv_scores(X, y, kfold)
+
+    lr_mae = float(-lr_cv["test_mae"].mean())
+    xgb_mae = float(-xgb_cv["test_mae"].mean())
+    lstm_mae = float(lstm_cv_mae)
+
+    # Hybrid weights: inverse MAE, normalized (LSTM + XGBoost + LR)
+    w_lstm = 1.0 / max(lstm_mae, 1e-6)
+    w_xgb = 1.0 / max(xgb_mae, 1e-6)
+    w_lr = 1.0 / max(lr_mae, 1e-6)
+    total_w = w_lstm + w_xgb + w_lr
+    hybrid_weights = {
+        "lstm": w_lstm / total_w,
+        "xgb": w_xgb / total_w,
+        "lr": w_lr / total_w,
+    }
 
     return {
         "best_svr_params": gs.best_params_,
@@ -76,8 +220,16 @@ def evaluate_models(X: np.ndarray, y: np.ndarray) -> dict:
         "cv_mae_std": float(svr_cv["test_mae"].std()),
         "cv_r2_mean": float(svr_cv["test_r2"].mean()),
         "cv_r2_std": float(svr_cv["test_r2"].std()),
-        "lr_cv_mae_mean": float(-lr_cv["test_mae"].mean()),
+        "lr_cv_mae_mean": lr_mae,
         "lr_cv_r2_mean": float(lr_cv["test_r2"].mean()),
+        "rf_cv_mae_mean": float(-rf_cv["test_mae"].mean()),
+        "rf_cv_r2_mean": float(rf_cv["test_r2"].mean()),
+        "xgb_cv_mae_mean": xgb_mae,
+        "xgb_cv_r2_mean": float(xgb_cv["test_r2"].mean()),
+        "xgb_best_params": xgb_best_params,
+        "lstm_cv_mae_mean": lstm_mae,
+        "lstm_cv_r2_mean": lstm_cv_r2,
+        "hybrid_weights": hybrid_weights,
     }
 
 
@@ -87,6 +239,8 @@ def save_metrics(stem: str, metrics: dict) -> None:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(metrics, f, indent=2)
 
+
+# ── Training + export ──────────────────────────────────────────────────────────
 
 def train_and_export(csv_path: str) -> bool:
     stem = os.path.splitext(os.path.basename(csv_path))[0].lower()
@@ -121,27 +275,48 @@ def train_and_export(csv_path: str) -> bool:
         print(f"[WARNING] {exc} — skipping '{stem}'.")
         return False
 
-    print(f"  [{stem}] Menjalankan 5-fold CV + GridSearchCV ({len(y)} baris) ...")
+    input_size = X.shape[1]
+    print(f"  [{stem}] Menjalankan 5-fold CV + GridSearchCV ({len(y)} baris, {input_size} fitur) ...")
     metrics = evaluate_models(X, y)
     metrics["trained_on_rows"] = int(len(y))
 
-    print(f"  [{stem}] SVR  CV-MAE={metrics['cv_mae_mean']:.2f} ± {metrics['cv_mae_std']:.2f}  CV-R²={metrics['cv_r2_mean']:.4f} ± {metrics['cv_r2_std']:.4f}")
+    print(f"  [{stem}] SVR  CV-MAE={metrics['cv_mae_mean']:.2f} ± {metrics['cv_mae_std']:.2f}  CV-R²={metrics['cv_r2_mean']:.4f}")
     print(f"  [{stem}] LR   CV-MAE={metrics['lr_cv_mae_mean']:.2f}  CV-R²={metrics['lr_cv_r2_mean']:.4f}")
+    print(f"  [{stem}] RF   CV-MAE={metrics['rf_cv_mae_mean']:.2f}  CV-R²={metrics['rf_cv_r2_mean']:.4f}")
+    print(f"  [{stem}] XGB  CV-MAE={metrics['xgb_cv_mae_mean']:.2f}  CV-R²={metrics['xgb_cv_r2_mean']:.4f}  params={metrics['xgb_best_params']}")
+    print(f"  [{stem}] LSTM CV-MAE={metrics['lstm_cv_mae_mean']:.2f}  CV-R²={metrics['lstm_cv_r2_mean']:.4f}")
+    hw = metrics["hybrid_weights"]
+    print(f"  [{stem}] Hybrid weights — lstm={hw['lstm']:.3f}  xgb={hw['xgb']:.3f}  lr={hw['lr']:.3f}")
     print(f"  [{stem}] Best SVR params: {metrics['best_svr_params']}")
 
+    # Train final models on full data
     final_svr = SVR(**metrics["best_svr_params"])
     final_svr.fit(X, y)
     final_lr = LinearRegression()
     final_lr.fit(X, y)
+    final_rf = train_rf(X, y)
+    final_xgb, _ = train_xgb(X, y, KFold(n_splits=5, shuffle=True, random_state=42))
+    print(f"  [{stem}] Training final LSTM on full data ...")
+    final_lstm = train_lstm(X, y, input_size)
 
     os.makedirs(MODELS_DIR, exist_ok=True)
     joblib.dump(final_svr, os.path.join(MODELS_DIR, f"svr_{stem}.pkl"))
     joblib.dump(final_lr, os.path.join(MODELS_DIR, f"linreg_{stem}.pkl"))
     joblib.dump(scaler, os.path.join(MODELS_DIR, f"scaler_{stem}.pkl"))
+    joblib.dump(final_rf, os.path.join(MODELS_DIR, f"rf_{stem}.pkl"))
+    joblib.dump(final_xgb, os.path.join(MODELS_DIR, f"xgb_{stem}.pkl"))
+    torch.save(final_lstm.state_dict(), os.path.join(MODELS_DIR, f"lstm_{stem}.pt"))
+    with open(os.path.join(MODELS_DIR, f"lstm_arch_{stem}.json"), "w") as f:
+        json.dump({"input_size": input_size}, f)
     save_metrics(stem, metrics)
-    print(f"  [{stem}] Exported: svr_{stem}.pkl | linreg_{stem}.pkl | scaler_{stem}.pkl | {stem}_metrics.json")
+
+    print(
+        f"  [{stem}] Exported: svr | linreg | scaler | rf | xgb | lstm | lstm_arch | metrics"
+    )
     return True
 
+
+# ── Cleanup ────────────────────────────────────────────────────────────────────
 
 def cleanup_stale_models(trained_stems: set) -> int:
     existing_svr = glob.glob(os.path.join(MODELS_DIR, "svr_*.pkl"))
@@ -149,14 +324,15 @@ def cleanup_stale_models(trained_stems: set) -> int:
     for svr_path in existing_svr:
         stem = os.path.basename(svr_path)[4:-4]
         if stem not in trained_stems:
-            for prefix in ("svr_", "linreg_", "scaler_"):
+            for prefix in ("svr_", "linreg_", "scaler_", "rf_", "xgb_"):
                 p = os.path.join(MODELS_DIR, f"{prefix}{stem}.pkl")
                 if os.path.exists(p):
                     os.remove(p)
-            metrics_path = os.path.join(MODELS_DIR, f"{stem}_metrics.json")
-            if os.path.exists(metrics_path):
-                os.remove(metrics_path)
-            print(f"  [CLEANUP] Removed stale model trio for '{stem}'.")
+            for name in (f"lstm_{stem}.pt", f"lstm_arch_{stem}.json", f"{stem}_metrics.json"):
+                p = os.path.join(MODELS_DIR, name)
+                if os.path.exists(p):
+                    os.remove(p)
+            print(f"  [CLEANUP] Removed stale models for '{stem}'.")
             removed += 1
     return removed
 
@@ -187,5 +363,5 @@ if __name__ == "__main__":
         removed = cleanup_stale_models(trained_stems)
         print(f"\n[OK] Done. {succeeded}/{total} datasets trained successfully.")
         if removed:
-            print(f"     Removed {removed} stale model trio(s) from '{MODELS_DIR}/'.")
+            print(f"     Removed {removed} stale model set(s) from '{MODELS_DIR}/'.")
         print(f"     Models saved to '{MODELS_DIR}/'.")

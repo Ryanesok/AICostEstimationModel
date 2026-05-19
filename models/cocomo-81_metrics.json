@@ -10,5 +10,21 @@
   "cv_r2_std": 0.4245296860252726,
   "lr_cv_mae_mean": 1042.0717373285956,
   "lr_cv_r2_mean": -6.255369903621743,
+  "rf_cv_mae_mean": 572.0019173076923,
+  "rf_cv_r2_mean": -3.7343905668357267,
+  "xgb_cv_mae_mean": 470.22075668383866,
+  "xgb_cv_r2_mean": 0.02936288747505047,
+  "xgb_best_params": {
+    "learning_rate": 0.05,
+    "max_depth": 5,
+    "n_estimators": 300
+  },
+  "lstm_cv_mae_mean": 675.2281512349539,
+  "lstm_cv_r2_mean": -0.40927858007364737,
+  "hybrid_weights": {
+    "lstm": 0.3242596596614687,
+    "xgb": 0.4656307647016597,
+    "lr": 0.2101095756368717
+  },
   "trained_on_rows": 63
 }

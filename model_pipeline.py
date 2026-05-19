@@ -33,11 +33,22 @@ XGB_GRID_PARAMS = {
     "learning_rate": [0.05, 0.1],
 }
 
+RF_GRID_PARAMS = {
+    "n_estimators": [100, 200],
+    "max_depth": [None, 10, 20],
+    "min_samples_split": [2, 5],
+}
+
+LSTM_GRID_PARAMS = {
+    "hidden_size": [32, 64, 128],
+    "lr": [1e-3, 5e-4],
+}
+
 
 # ── Model definitions ──────────────────────────────────────────────────────────
 
 class LSTMModel(nn.Module):
-    def __init__(self, input_size: int, hidden_size: int = 32):
+    def __init__(self, input_size: int, hidden_size: int = 64):
         super().__init__()
         self.lstm = nn.LSTM(input_size, hidden_size, batch_first=True)
         self.fc = nn.Linear(hidden_size, 1)
@@ -85,10 +96,16 @@ def preprocess(df: pd.DataFrame, features: list[str], target: str):
 
 # ── Training functions ─────────────────────────────────────────────────────────
 
-def train_rf(X: np.ndarray, y: np.ndarray) -> RandomForestRegressor:
-    model = RandomForestRegressor(n_estimators=200, random_state=42)
-    model.fit(X, y)
-    return model
+def train_rf(X: np.ndarray, y: np.ndarray, kfold: KFold):
+    gs = GridSearchCV(
+        RandomForestRegressor(random_state=42),
+        RF_GRID_PARAMS,
+        cv=kfold,
+        scoring="neg_mean_absolute_error",
+        n_jobs=-1,
+    )
+    gs.fit(X, y)
+    return gs.best_estimator_, gs.best_params_
 
 
 def train_xgb(X: np.ndarray, y: np.ndarray, kfold: KFold):
@@ -107,6 +124,8 @@ def train_lstm(
     X: np.ndarray,
     y: np.ndarray,
     input_size: int,
+    hidden_size: int = 64,
+    lr: float = 1e-3,
     epochs: int = 200,
     patience: int = 20,
 ) -> LSTMModel:
@@ -126,8 +145,8 @@ def train_lstm(
         TensorDataset(X_tr_t, y_tr_t), batch_size=16, shuffle=True
     )
 
-    model = LSTMModel(input_size)
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    model = LSTMModel(input_size, hidden_size)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     criterion = nn.MSELoss()
 
     best_val_loss = float("inf")
@@ -164,12 +183,15 @@ def train_lstm(
 
 # ── Evaluation ─────────────────────────────────────────────────────────────────
 
-def _lstm_cv_scores(X: np.ndarray, y: np.ndarray, kfold: KFold) -> tuple[float, float]:
+def _lstm_cv_scores_with_params(
+    X: np.ndarray, y: np.ndarray, kfold: KFold, hidden_size: int, lr: float
+) -> tuple[float, float]:
     mae_scores, r2_scores = [], []
     for train_idx, val_idx in kfold.split(X):
         X_tr, X_val = X[train_idx], X[val_idx]
         y_tr, y_val = y[train_idx], y[val_idx]
-        m = train_lstm(X_tr, y_tr, input_size=X_tr.shape[1])
+        torch.manual_seed(42)
+        m = train_lstm(X_tr, y_tr, input_size=X_tr.shape[1], hidden_size=hidden_size, lr=lr)
         with torch.no_grad():
             preds = m(torch.tensor(X_val, dtype=torch.float32).unsqueeze(1)).numpy()
         mae_scores.append(mean_absolute_error(y_val, preds))
@@ -179,7 +201,25 @@ def _lstm_cv_scores(X: np.ndarray, y: np.ndarray, kfold: KFold) -> tuple[float, 
     return float(np.mean(mae_scores)), float(np.mean(r2_scores))
 
 
-def evaluate_models(X: np.ndarray, y: np.ndarray) -> dict:
+def train_lstm_with_tuning(
+    X: np.ndarray, y: np.ndarray, input_size: int, kfold: KFold
+) -> tuple:
+    best_mae = float("inf")
+    best_r2 = 0.0
+    best_params: dict = {"hidden_size": 64, "lr": 1e-3}
+    for hidden_size in LSTM_GRID_PARAMS["hidden_size"]:
+        for lr in LSTM_GRID_PARAMS["lr"]:
+            cv_mae, cv_r2 = _lstm_cv_scores_with_params(X, y, kfold, hidden_size, lr)
+            if cv_mae < best_mae:
+                best_mae = cv_mae
+                best_r2 = cv_r2
+                best_params = {"hidden_size": hidden_size, "lr": lr}
+    torch.manual_seed(42)
+    model = train_lstm(X, y, input_size, **best_params)
+    return model, best_params, best_mae, best_r2
+
+
+def evaluate_models(X: np.ndarray, y: np.ndarray, input_size: int) -> dict:
     kfold = KFold(n_splits=5, shuffle=True, random_state=42)
     scoring = {
         "mae": make_scorer(mean_absolute_error, greater_is_better=False),
@@ -194,10 +234,11 @@ def evaluate_models(X: np.ndarray, y: np.ndarray) -> dict:
 
     svr_cv = cross_validate(gs.best_estimator_, X, y, cv=kfold, scoring=scoring)
     lr_cv = cross_validate(LinearRegression(), X, y, cv=kfold, scoring=scoring)
-    rf_cv = cross_validate(RandomForestRegressor(n_estimators=200, random_state=42), X, y, cv=kfold, scoring=scoring)
+    _, rf_best_params = train_rf(X, y, kfold)
+    rf_cv = cross_validate(RandomForestRegressor(random_state=42, **rf_best_params), X, y, cv=kfold, scoring=scoring)
     _, xgb_best_params = train_xgb(X, y, kfold)
     xgb_cv = cross_validate(XGBRegressor(random_state=42, verbosity=0, **xgb_best_params), X, y, cv=kfold, scoring=scoring)
-    lstm_cv_mae, lstm_cv_r2 = _lstm_cv_scores(X, y, kfold)
+    _, lstm_best_params, lstm_cv_mae, lstm_cv_r2 = train_lstm_with_tuning(X, y, input_size, kfold)
 
     lr_mae = float(-lr_cv["test_mae"].mean())
     xgb_mae = float(-xgb_cv["test_mae"].mean())
@@ -224,11 +265,13 @@ def evaluate_models(X: np.ndarray, y: np.ndarray) -> dict:
         "lr_cv_r2_mean": float(lr_cv["test_r2"].mean()),
         "rf_cv_mae_mean": float(-rf_cv["test_mae"].mean()),
         "rf_cv_r2_mean": float(rf_cv["test_r2"].mean()),
+        "rf_best_params": rf_best_params,
         "xgb_cv_mae_mean": xgb_mae,
         "xgb_cv_r2_mean": float(xgb_cv["test_r2"].mean()),
         "xgb_best_params": xgb_best_params,
         "lstm_cv_mae_mean": lstm_mae,
         "lstm_cv_r2_mean": lstm_cv_r2,
+        "lstm_best_params": lstm_best_params,
         "hybrid_weights": hybrid_weights,
     }
 
@@ -277,28 +320,31 @@ def train_and_export(csv_path: str) -> bool:
 
     input_size = X.shape[1]
     print(f"  [{stem}] Menjalankan 5-fold CV + GridSearchCV ({len(y)} baris, {input_size} fitur) ...")
-    metrics = evaluate_models(X, y)
+    metrics = evaluate_models(X, y, input_size)
     metrics["trained_on_rows"] = int(len(y))
 
     print(f"  [{stem}] SVR  CV-MAE={metrics['cv_mae_mean']:.2f} ± {metrics['cv_mae_std']:.2f}  CV-R²={metrics['cv_r2_mean']:.4f}")
     print(f"  [{stem}] LR   CV-MAE={metrics['lr_cv_mae_mean']:.2f}  CV-R²={metrics['lr_cv_r2_mean']:.4f}")
-    print(f"  [{stem}] RF   CV-MAE={metrics['rf_cv_mae_mean']:.2f}  CV-R²={metrics['rf_cv_r2_mean']:.4f}")
+    print(f"  [{stem}] RF   CV-MAE={metrics['rf_cv_mae_mean']:.2f}  CV-R²={metrics['rf_cv_r2_mean']:.4f}  params={metrics['rf_best_params']}")
     print(f"  [{stem}] XGB  CV-MAE={metrics['xgb_cv_mae_mean']:.2f}  CV-R²={metrics['xgb_cv_r2_mean']:.4f}  params={metrics['xgb_best_params']}")
-    print(f"  [{stem}] LSTM CV-MAE={metrics['lstm_cv_mae_mean']:.2f}  CV-R²={metrics['lstm_cv_r2_mean']:.4f}")
+    print(f"  [{stem}] LSTM CV-MAE={metrics['lstm_cv_mae_mean']:.2f}  CV-R²={metrics['lstm_cv_r2_mean']:.4f}  params={metrics['lstm_best_params']}")
     hw = metrics["hybrid_weights"]
     print(f"  [{stem}] Hybrid weights — lstm={hw['lstm']:.3f}  xgb={hw['xgb']:.3f}  lr={hw['lr']:.3f}")
     print(f"  [{stem}] Best SVR params: {metrics['best_svr_params']}")
 
-    # Train final models on full data
+    # Train final models on full data using best params found during evaluation
     final_svr = SVR(**metrics["best_svr_params"])
     final_svr.fit(X, y)
     final_lr = LinearRegression()
     final_lr.fit(X, y)
-    final_rf = train_rf(X, y)
+    final_rf = RandomForestRegressor(random_state=42, **metrics["rf_best_params"])
+    final_rf.fit(X, y)
     final_xgb, _ = train_xgb(X, y, KFold(n_splits=5, shuffle=True, random_state=42))
     print(f"  [{stem}] Training final LSTM on full data ...")
-    final_lstm = train_lstm(X, y, input_size)
+    torch.manual_seed(42)
+    final_lstm = train_lstm(X, y, input_size, **metrics["lstm_best_params"])
 
+    lstm_hidden = metrics["lstm_best_params"]["hidden_size"]
     os.makedirs(MODELS_DIR, exist_ok=True)
     joblib.dump(final_svr, os.path.join(MODELS_DIR, f"svr_{stem}.pkl"))
     joblib.dump(final_lr, os.path.join(MODELS_DIR, f"linreg_{stem}.pkl"))
@@ -307,7 +353,7 @@ def train_and_export(csv_path: str) -> bool:
     joblib.dump(final_xgb, os.path.join(MODELS_DIR, f"xgb_{stem}.pkl"))
     torch.save(final_lstm.state_dict(), os.path.join(MODELS_DIR, f"lstm_{stem}.pt"))
     with open(os.path.join(MODELS_DIR, f"lstm_arch_{stem}.json"), "w") as f:
-        json.dump({"input_size": input_size}, f)
+        json.dump({"input_size": input_size, "hidden_size": lstm_hidden}, f)
     save_metrics(stem, metrics)
 
     print(

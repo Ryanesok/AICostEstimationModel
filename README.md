@@ -132,3 +132,9 @@ Lihat folder `docs/` untuk panduan lengkap per dataset:
 - [docs/desharnais.md](docs/desharnais.md) — 5 field, effort dalam person-hours
 - [docs/china.md](docs/china.md) — 14 field, effort dalam person-hours
 - [docs/maxwell.md](docs/maxwell.md) — 25 field, effort dalam person-hours
+
+---
+
+## Roadmap
+
+Lihat [roadmap.md](roadmap.md) untuk ringkasan apa yang sudah dirilis, sedang dikerjakan, dan arah pengembangan ke depan.

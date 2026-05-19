@@ -1,0 +1,14 @@
+{
+  "best_svr_params": {
+    "C": 100,
+    "epsilon": 0.01,
+    "kernel": "linear"
+  },
+  "cv_mae_mean": 4009.7024215037272,
+  "cv_mae_std": 1756.6908388275112,
+  "cv_r2_mean": 0.31175552937412937,
+  "cv_r2_std": 0.11559981862580299,
+  "lr_cv_mae_mean": 5020.800990314903,
+  "lr_cv_r2_mean": -0.17617775840703412,
+  "trained_on_rows": 62
+}

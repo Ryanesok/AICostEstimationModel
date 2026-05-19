@@ -18,3 +18,10 @@
 
 - [x] 3.1 Konfirmasi `README.md` ada di root dan keempat file `docs/*.md` tersedia
 - [x] 3.2 Periksa tabel di setiap panduan — semua fitur dari `dataset_config.yaml` tercakup tanpa ada field yang terlewat
+
+## 4. roadmap.md (Root)
+
+- [x] 4.1 Buat `roadmap.md` di root — bagian: Shipped (milestone yang sudah selesai berdasarkan history OpenSpec)
+- [x] 4.2 `roadmap.md` — bagian: In Progress (pekerjaan yang sedang berjalan / change OpenSpec aktif)
+- [x] 4.3 `roadmap.md` — bagian: Planned (arah pengembangan ke depan: dataset, model, fitur GUI, kualitas)
+- [x] 4.4 Tambahkan link ke `roadmap.md` di `README.md` agar mudah ditemukan

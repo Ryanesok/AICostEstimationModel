@@ -30,7 +30,7 @@ MODEL_NAMES = ["SVR", "Linear Regression", "Random Forest", "XGBoost", "LSTM", "
 # ── LSTM model definition (must match model_pipeline.py) ──────────────────────
 
 class LSTMModel(nn.Module):
-    def __init__(self, input_size: int, hidden_size: int = 32):
+    def __init__(self, input_size: int, hidden_size: int = 64):
         super().__init__()
         self.lstm = nn.LSTM(input_size, hidden_size, batch_first=True)
         self.fc = nn.Linear(hidden_size, 1)
@@ -106,7 +106,7 @@ def _load_lstm(stem: str) -> LSTMModel | None:
         return None
     with open(arch_path, "r") as f:
         arch = json.load(f)
-    model = LSTMModel(arch["input_size"])
+    model = LSTMModel(arch["input_size"], arch.get("hidden_size", 64))
     model.load_state_dict(torch.load(pt_path, map_location="cpu", weights_only=True))
     model.eval()
     return model

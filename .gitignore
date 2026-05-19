@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+.Python
+
+# Distribution / packaging
+*.egg-info/
+dist/
+build/
+*.egg
+*.whl
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Environment variables
+.env
+.env.*
+*.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs & temp
+*.log
+*.tmp
+*.bak
+tmp/
+temp/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# PyTorch / ML (large binary artifacts — already tracked intentionally,
+# list here only if you want to untrack in the future via: git rm --cached)
+# models/*.pt
+# models/*.pkl
+# data/*.csv

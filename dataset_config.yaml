@@ -72,10 +72,10 @@ datasets:
     features:
     - TeamExp
     - ManagerExp
-    - Length
     - Transactions
     - Entities
     target: Effort
+    secondary_target: Length
     labels:
       TeamExp: Team Experience (tahun)
       ManagerExp: Manager Experience (tahun)
@@ -100,10 +100,6 @@ datasets:
     - Added
     - Changed
     - Deleted
-    - PDR_AFP
-    - PDR_UFP
-    - NPDR_AFP
-    - NPDU_UFP
     - Resource
     target: Effort
     labels:
@@ -171,8 +167,6 @@ datasets:
     - T13
     - T14
     - T15
-    - Size
-    - Time
     target: Effort
     labels:
       Syear: Tahun Survey

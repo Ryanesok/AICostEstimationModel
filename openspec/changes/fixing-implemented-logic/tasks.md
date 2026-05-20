@@ -58,6 +58,16 @@
 - [x] 10.2 `auto_configure.py` — update `suggest_target()`: loop `PRIMARY_TARGET_COLS` dulu; jika tidak ada match, loop `SECONDARY_TARGET_COLS`; jika masih tidak ada, fallback ke korelasi
 - [x] 10.3 `auto_configure.py` — update `is_effort_col()` → `is_primary_target_col()` dan tambahkan `is_secondary_target_col()`; perbarui semua pemanggilan; update `suggested_reason` agar membedakan "primary keyword" vs "secondary keyword" vs "korelasi"
 
+## 12. Post-Project Column Guard
+
+- [x] 12.1 `field_labels.yaml` — tambahkan key `post_project_cols` per dataset: cocomo-81 (kosong), desharnais ([Length]), china ([Duration, N_effort]), maxwell ([Duration, Size, Time])
+- [x] 12.2 `field_labels.yaml` — tambahkan `secondary_target: Length` untuk desharnais (Length = durasi aktual proyek, sama konsepnya dengan Duration di china/maxwell)
+- [x] 12.3 `dataset_config.yaml` — hapus `Length` dari features desharnais; tambahkan `secondary_target: Length`
+- [x] 12.4 `dataset_config.yaml` — hapus `Size` dan `Time` dari features maxwell (keduanya nilai aktual post-project)
+- [x] 12.5 `auto_configure.py` — tambahkan `load_post_project_cols(stem)` yang membaca `post_project_cols` dari field_labels.yaml
+- [x] 12.6 `auto_configure.py` — di `configure_one()`, sebelum filter near-constant, filter keluar kolom yang ada di `post_project_cols` dengan notice per kolom
+- [x] 12.7 `auto_configure.py` — di `backfill_defaults()`, tambahkan loop `post_project_cols`: hapus dari `features` jika masih ada, cetak notice per kolom
+
 ## 11. Verifikasi
 
 - [x] 9.1 Jalankan `python model_pipeline.py` — konfirmasi semua 4 dataset berhasil dilatih dan file `models/<stem>_metrics.json` terbuat

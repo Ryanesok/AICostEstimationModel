@@ -75,7 +75,7 @@ def is_secondary_target_col(col: str) -> bool:
 
 
 def load_default_labels(stem: str | None = None) -> dict:
-    """Load field_labels.yaml. If stem given, return {labels, hints, effort_unit} for that stem."""
+    """Load field_labels.yaml. If stem given, return {labels, hints, effort_unit, ...} for that stem."""
     if not os.path.exists(FIELD_LABELS_FILE):
         return {}
     with open(FIELD_LABELS_FILE, "r", encoding="utf-8") as f:
@@ -84,6 +84,12 @@ def load_default_labels(stem: str | None = None) -> dict:
     if stem is not None:
         return datasets.get(stem.lower(), {})
     return datasets
+
+
+def load_post_project_cols(stem: str) -> list[str]:
+    """Return known post-project columns for stem from field_labels.yaml."""
+    defaults = load_default_labels(stem)
+    return defaults.get("post_project_cols", [])
 
 
 def backfill_defaults(existing: dict) -> tuple[dict, int]:
@@ -109,6 +115,12 @@ def backfill_defaults(existing: dict) -> tuple[dict, int]:
             if sec in cfg.get("features", []):
                 cfg["features"] = [f for f in cfg["features"] if f != sec]
                 print(f"  [BACKFILL] '{sec}' dipindahkan dari fitur ke secondary_target untuk '{stem}'.")
+        # post_project_cols: remove any that still appear in features
+        for col in defaults.get("post_project_cols", []):
+            if col in cfg.get("features", []):
+                cfg["features"] = [f for f in cfg["features"] if f != col]
+                print(f"  [BACKFILL] '{col}' dihapus dari fitur '{stem}' — nilai post-project.")
+                changed = True
         if changed:
             print(f"  [BACKFILL] Default label/hint/effort_unit diterapkan untuk '{stem}'.")
             updated += 1
@@ -193,6 +205,17 @@ def configure_one(csv_path: str, existing: dict) -> tuple[str, dict] | None:
     if not candidates:
         print("  [WARN] Semua kolom numerik terdeteksi sebagai metadata — dilewati.")
         return None
+
+    # Exclude known post-project columns before showing candidates
+    post_project = load_post_project_cols(stem)
+    excluded_pp = [c for c in candidates if c in post_project]
+    if excluded_pp:
+        for col in excluded_pp:
+            candidates.remove(col)
+            print(f"  [FILTER] Kolom '{col}' dikecualikan — nilai post-project (hanya diketahui setelah proyek selesai).")
+        if not candidates:
+            print("  [ERROR] Tidak ada kolom fitur tersisa setelah filter post-project.")
+            return None
 
     # Drop near-constant columns before showing candidates
     near_constant = find_near_constant(df, candidates)

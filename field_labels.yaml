@@ -6,6 +6,7 @@ datasets:
 
   cocomo-81:
     effort_unit: person-months
+    post_project_cols: []
     labels:
       rely: "Reliability (Rely)"
       data: "Database Size (Data)"
@@ -43,6 +44,9 @@ datasets:
 
   desharnais:
     effort_unit: person-hours
+    secondary_target: Length
+    post_project_cols:
+      - Length
     labels:
       TeamExp: "Team Experience (tahun)"
       ManagerExp: "Manager Experience (tahun)"
@@ -59,6 +63,13 @@ datasets:
   china:
     effort_unit: person-hours
     secondary_target: Duration
+    post_project_cols:
+      - Duration
+      - N_effort
+      - PDR_AFP
+      - PDR_UFP
+      - NPDR_AFP
+      - NPDU_UFP
     labels:
       AFP: "Adjusted Function Points (AFP)"
       Input: "External Inputs (EI)"
@@ -99,6 +110,10 @@ datasets:
   maxwell:
     effort_unit: person-hours
     secondary_target: Duration
+    post_project_cols:
+      - Duration
+      - Size
+      - Time
     labels:
       Syear: "Tahun Survey"
       App: "Tipe Aplikasi"

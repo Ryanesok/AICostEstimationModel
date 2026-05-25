@@ -168,3 +168,52 @@ datasets:
       Duration: "Durasi proyek dalam jam. Contoh: 2000"
       Size: "Ukuran sistem dalam Lines of Code. Contoh: 15000"
       Time: "Total waktu pengembangan dalam jam. Contoh: 1800"
+
+  kitchenham:
+    effort_unit: person-hours
+    post_project_cols:
+      - Actual.duration
+    labels:
+      Adjusted.function.points: "Adjusted Function Points (AFP)"
+      First.estimate: "Estimasi Awal Effort (person-hours)"
+    hints:
+      Adjusted.function.points: "Jumlah Function Points yang sudah disesuaikan (AFP). Contoh: 250"
+      First.estimate: "Estimasi effort awal sebelum proyek dimulai, dalam person-hours. Contoh: 1500"
+
+  nasa93:
+    effort_unit: person-months
+    post_project_cols: []
+    labels:
+      rely: "Reliability (Rely)"
+      data: "Database Size (Data)"
+      cplx: "Complexity (Cplx)"
+      time: "Execution Time Constraint (Time)"
+      stor: "Storage Constraint (Stor)"
+      virt: "Virtual Machine Volatility (Virt)"
+      turn: "Computer Turnaround (Turn)"
+      acap: "Analyst Capability (Acap)"
+      aexp: "Application Experience (Aexp)"
+      pcap: "Programmer Capability (Pcap)"
+      vexp: "VM Experience (Vexp)"
+      lexp: "Language Experience (Lexp)"
+      modp: "Modern Programming Practices (Modp)"
+      tool: "Software Tools (Tool)"
+      sced: "Schedule Constraint (Sced)"
+      equivphyskloc: "Ukuran Sistem (KLOC)"
+    hints:
+      rely: "Reliabilitas: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh | 6=xh"
+      data: "Ukuran DB relatif: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh | 6=xh"
+      cplx: "Kompleksitas produk: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh | 6=xh"
+      time: "Batasan waktu eksekusi: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh | 6=xh"
+      stor: "Batasan memori: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh | 6=xh"
+      virt: "Volatilitas VM: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh | 6=xh"
+      turn: "Turnaround komputer: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh | 6=xh"
+      acap: "Kemampuan analis: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh"
+      aexp: "Pengalaman aplikasi: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh"
+      pcap: "Kemampuan programmer: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh"
+      vexp: "Pengalaman VM: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh"
+      lexp: "Pengalaman bahasa: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh"
+      modp: "Praktik pemrograman modern: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh"
+      tool: "Alat bantu software: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh"
+      sced: "Jadwal: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh"
+      equivphyskloc: "Ukuran sistem dalam KLOC (ribuan baris kode). Contoh: 25.9"

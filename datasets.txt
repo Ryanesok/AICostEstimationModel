@@ -14,7 +14,7 @@
 #   desharnais: TeamExp, ManagerExp, Length, Transactions, Entities, Effort
 #   dataset:    kloc, reliability, complexity, team_size, schedule, effort  (sudah ada)
 
-https://raw.githubusercontent.com/montge/datasets/refs/heads/main/CostEstimation/COCOMO-81.csv
+https://raw.githubusercontent.com/montge/datasets/refs/heads/main/CostEstimation/nasa93.arff
 https://raw.githubusercontent.com/montge/datasets/refs/heads/main/CostEstimation/Desharnais.csv
 https://raw.githubusercontent.com/montge/datasets/refs/heads/main/CostEstimation/china.arff
-https://raw.githubusercontent.com/montge/datasets/refs/heads/main/CostEstimation/maxwell.arff
+https://raw.githubusercontent.com/montge/datasets/refs/heads/main/CostEstimation/kitchenham.arff

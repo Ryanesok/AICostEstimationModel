@@ -1,73 +1,4 @@
 datasets:
-  cocomo-81:
-    features:
-    - rely
-    - data
-    - cplx
-    - time
-    - stor
-    - virt
-    - turn
-    - acap
-    - aexp
-    - pcap
-    - vexp
-    - lexp
-    - modp
-    - tool
-    - sced
-    - loc
-    target: actual
-    labels:
-      rely: Reliability (Rely)
-      data: Database Size (Data)
-      cplx: Complexity (Cplx)
-      time: Execution Time Constraint (Time)
-      stor: Storage Constraint (Stor)
-      virt: Virtual Machine Volatility (Virt)
-      turn: Computer Turnaround (Turn)
-      acap: Analyst Capability (Acap)
-      aexp: Application Experience (Aexp)
-      pcap: Programmer Capability (Pcap)
-      vexp: VM Experience (Vexp)
-      lexp: Language Experience (Lexp)
-      modp: Modern Programming Practices (Modp)
-      tool: Software Tools (Tool)
-      sced: Schedule Constraint (Sced)
-      loc: LOC (ribuan baris)
-    hints:
-      rely: 'Reliabilitas yang dibutuhkan: 0.75 (sangat rendah) | 0.88 (rendah) |
-        1.00 (nominal) | 1.15 (tinggi) | 1.40 (sangat tinggi)'
-      data: 'Ukuran DB relatif program (D/P): 0.94 (D/P<10) | 1.00 (10-100) | 1.08
-        (100-1000) | 1.16 (≥1000)'
-      cplx: 'Kompleksitas produk: 0.70 (sangat rendah) | 0.85 (rendah) | 1.00 (nominal)
-        | 1.15 (tinggi) | 1.30 (sangat tinggi) | 1.65 (ekstra tinggi)'
-      time: 'Batasan waktu eksekusi: 1.00 (≤50%) | 1.11 (70%) | 1.30 (85%) | 1.66
-        (95%)'
-      stor: 'Batasan memori utama: 1.00 (≤50%) | 1.06 (70%) | 1.21 (85%) | 1.56 (95%)'
-      virt: 'Volatilitas VM: 0.87 (>1 bulan) | 1.00 (1 bulan) | 1.15 (1 minggu) |
-        1.30 (2 hari)'
-      turn: 'Turnaround komputer: 0.87 (interaktif) | 1.00 (rata-rata 4 jam) | 1.07
-        (12 jam) | 1.15 (>1 hari)'
-      acap: 'Kemampuan analis: 1.46 (sangat rendah) | 1.19 (rendah) | 1.00 (nominal)
-        | 0.86 (tinggi) | 0.71 (sangat tinggi)'
-      aexp: 'Pengalaman aplikasi: 1.29 (<4 bulan) | 1.13 (1 tahun) | 1.00 (3 tahun)
-        | 0.91 (6 tahun) | 0.82 (>6 tahun)'
-      pcap: 'Kemampuan programmer: 1.42 (sangat rendah) | 1.17 (rendah) | 1.00 (nominal)
-        | 0.86 (tinggi) | 0.70 (sangat tinggi)'
-      vexp: 'Pengalaman VM: 1.21 (<1 bulan) | 1.10 (1 bulan) | 1.00 (1 tahun) | 0.90
-        (>3 tahun)'
-      lexp: 'Pengalaman bahasa: 1.14 (<1 bulan) | 1.07 (1 bulan) | 1.00 (1 tahun)
-        | 0.95 (>3 tahun)'
-      modp: 'Praktik pemrograman modern: 1.24 (sangat rendah) | 1.10 (rendah) | 1.00
-        (nominal) | 0.91 (tinggi) | 0.82 (sangat tinggi)'
-      tool: 'Alat bantu software: 1.24 (sangat rendah) | 1.10 (rendah) | 1.00 (nominal)
-        | 0.91 (tinggi) | 0.83 (sangat tinggi)'
-      sced: 'Jadwal: 1.23 (75% dipercepat) | 1.08 (85%) | 1.00 (nominal 100%) | 1.04
-        (130%) | 1.10 (160% diperlambat)'
-      loc: 'Jumlah Lines of Code dalam ribuan (KLOC). Contoh: 30 berarti 30.000 baris
-        kode'
-    effort_unit: person-months
   desharnais:
     features:
     - TeamExp
@@ -102,6 +33,7 @@ datasets:
     - Deleted
     - Resource
     target: Effort
+    secondary_target: Duration
     labels:
       AFP: Adjusted Function Points (AFP)
       Input: External Inputs (EI)
@@ -112,122 +44,100 @@ datasets:
       Added: FP Ditambahkan
       Changed: FP Dimodifikasi
       Deleted: FP Dihapus
-      PDR_AFP: PDR/AFP Ratio
-      PDR_UFP: PDR/UFP Ratio
-      NPDR_AFP: NPDR/AFP Ratio
-      NPDU_UFP: NPDU/UFP Ratio
       Resource: Jumlah Resource/Tim
-      Dev.Type: Tipe Pengembangan
-      Duration: Durasi Proyek (jam)
-      N_effort: Normalized Effort (jam/FP)
     hints:
       AFP: 'Adjusted Function Points setelah faktor penyesuaian. Contoh: 215'
       Input: 'External Inputs — jumlah proses input dari luar sistem. Contoh: 10'
       Output: 'External Outputs — jumlah proses output ke luar sistem. Contoh: 8'
-      Enquiry: 'External Enquiries — jumlah query input-output tanpa transformasi.
-        Contoh: 12'
+      Enquiry: 'External Enquiries — jumlah query input-output tanpa transformasi. Contoh: 12'
       File: 'Internal Logical Files — file yang dikelola oleh sistem. Contoh: 5'
       Interface: 'External Interface Files — file dari sistem eksternal. Contoh: 3'
       Added: 'Function Points yang ditambahkan (proyek enhancement). Contoh: 50'
       Changed: 'Function Points yang dimodifikasi (proyek enhancement). Contoh: 30'
       Deleted: 'Function Points yang dihapus (proyek enhancement). Contoh: 10'
-      PDR_AFP: 'Rasio Preliminary Design Review terhadap AFP. Contoh: 1.2'
-      PDR_UFP: 'Rasio Preliminary Design Review terhadap Unadjusted FP. Contoh: 0.9'
-      NPDR_AFP: 'Rasio Non-PDR terhadap AFP. Contoh: 0.8'
-      NPDU_UFP: 'Rasio Non-PDR terhadap Unadjusted FP. Contoh: 0.7'
-      Resource: 'Jumlah resource/anggota tim: 1=kecil | 2=sedang | 3=besar | 4=sangat
-        besar'
-      Dev.Type: 'Tipe pengembangan: 1=Baru | 2=Enhancement | 3=Re-engineering'
-      Duration: 'Durasi proyek dalam jam. Contoh: 500'
-      N_effort: 'Normalized effort dalam jam per Function Point. Contoh: 2.5'
+      Resource: 'Jumlah resource/anggota tim: 1=kecil | 2=sedang | 3=besar | 4=sangat besar'
     effort_unit: person-hours
-    secondary_target: Duration
-  maxwell:
+  kitchenham:
     features:
-    - Syear
-    - App
-    - Har
-    - Dba
-    - Ifc
-    - Source
-    - Telonuse
-    - Nlan
-    - T01
-    - T02
-    - T03
-    - T04
-    - T05
-    - T06
-    - T07
-    - T08
-    - T09
-    - T10
-    - T11
-    - T12
-    - T13
-    - T14
-    - T15
-    target: Effort
+    - Adjusted.function.points
+    - First.estimate
+    target: Actual.effort
+    post_project_cols:
+    - Actual.duration
     labels:
-      Syear: Tahun Survey
-      App: Tipe Aplikasi
-      Har: Tipe Hardware
-      Dba: Database Administrator
-      Ifc: Kompleksitas Antarmuka
-      Source: Sumber Proyek
-      Telonuse: Penggunaan Sistem Online
-      Nlan: Jumlah Bahasa Pemrograman
-      T01: 'Faktor T01: Perangkat CASE'
-      T02: 'Faktor T02: Prototyping'
-      T03: 'Faktor T03: Structured Programming'
-      T04: 'Faktor T04: Code Review'
-      T05: 'Faktor T05: Software Reuse'
-      T06: 'Faktor T06: Top-Down Design'
-      T07: 'Faktor T07: Chief Programmer Team'
-      T08: 'Faktor T08: Walkthroughs'
-      T09: 'Faktor T09: Programming Standards'
-      T10: 'Faktor T10: Change Management'
-      T11: 'Faktor T11: Configuration Management'
-      T12: 'Faktor T12: Test Planning'
-      T13: 'Faktor T13: Structured Design'
-      T14: 'Faktor T14: Online Development'
-      T15: 'Faktor T15: Project Management Tools'
-      Duration: Durasi Proyek (jam)
-      Size: Ukuran Sistem (LOC)
-      Time: Waktu Pengembangan (jam)
+      Adjusted.function.points: Adjusted Function Points (AFP)
+      First.estimate: Estimasi Awal Effort (person-hours)
     hints:
-      Syear: 'Tahun survei proyek: 85 (1985) hingga 93 (1993)'
-      App: 'Tipe aplikasi: 1=MIS | 2=Realtime | 3=Mathematical | 4=General | 5=Support'
-      Har: 'Tipe hardware: 1=Mainframe | 2=Minicomputer | 3=Micro | 4=Workstation
-        | 5=PC'
-      Dba: 'Peran DBA: 1=Tidak ada | 2=Jarang | 3=Kadang | 4=Sering | 5=Penuh waktu'
-      Ifc: 'Kompleksitas antarmuka: 1=Sangat rendah | 2=Rendah | 3=Sedang | 4=Tinggi
-        | 5=Sangat tinggi'
-      Source: 'Sumber proyek: 1=Internal | 2=Vendor | 3=Campuran | 4=Outsource | 5=Konsultan'
-      Telonuse: 'Penggunaan sistem online: 1=Tidak | 2=Minimal | 3=Sebagian | 4=Mayoritas
-        | 5=Penuh'
-      Nlan: 'Jumlah bahasa pemrograman berbeda yang digunakan. Contoh: 2'
-      T01: 'Penggunaan alat CASE: 1=Tidak ada | 2=Minimal | 3=Sedang | 4=Banyak |
-        5=Komprehensif'
-      T02: 'Prototyping: 1=Tidak | 2=Minimal | 3=Sebagian | 4=Banyak | 5=Penuh'
-      T03: 'Pemrograman terstruktur: 1=Tidak | 2=Sebagian | 3=Sedang | 4=Mayoritas
-        | 5=Penuh'
-      T04: 'Code review: 1=Tidak | 2=Jarang | 3=Kadang | 4=Sering | 5=Selalu'
-      T05: 'Reuse kode: 1=Tidak | 2=Minimal | 3=Sedang | 4=Banyak | 5=Komprehensif'
-      T06: 'Top-down design: 1=Tidak | 2=Sebagian | 3=Sedang | 4=Mayoritas | 5=Penuh'
-      T07: 'Chief programmer team: 1=Tidak | 2=Jarang | 3=Kadang | 4=Sering | 5=Selalu'
-      T08: 'Walkthroughs: 1=Tidak | 2=Jarang | 3=Kadang | 4=Sering | 5=Selalu'
-      T09: 'Standar pemrograman: 1=Tidak | 2=Informal | 3=Sebagian | 4=Formal | 5=Ketat'
-      T10: 'Manajemen perubahan: 1=Tidak | 2=Informal | 3=Sedang | 4=Formal | 5=Ketat'
-      T11: 'Manajemen konfigurasi: 1=Tidak | 2=Minimal | 3=Sedang | 4=Formal | 5=Ketat'
-      T12: 'Perencanaan pengujian: 1=Tidak | 2=Informal | 3=Sebagian | 4=Formal |
-        5=Ketat'
-      T13: 'Structured design: 1=Tidak | 2=Sebagian | 3=Sedang | 4=Mayoritas | 5=Penuh'
-      T14: 'Pengembangan online: 1=Tidak | 2=Minimal | 3=Sebagian | 4=Mayoritas |
-        5=Penuh'
-      T15: 'Alat manajemen proyek: 1=Tidak | 2=Minimal | 3=Sedang | 4=Banyak | 5=Komprehensif'
-      Duration: 'Durasi proyek dalam jam. Contoh: 2000'
-      Size: 'Ukuran sistem dalam Lines of Code. Contoh: 15000'
-      Time: 'Total waktu pengembangan dalam jam. Contoh: 1800'
+      Adjusted.function.points: 'Jumlah Function Points yang sudah disesuaikan (AFP). Contoh: 250'
+      First.estimate: 'Estimasi effort awal sebelum proyek dimulai, dalam person-hours. Contoh: 1500'
     effort_unit: person-hours
-    secondary_target: Duration
+  nasa93:
+    features:
+    - rely
+    - data
+    - cplx
+    - time
+    - stor
+    - virt
+    - turn
+    - acap
+    - aexp
+    - pcap
+    - vexp
+    - lexp
+    - modp
+    - tool
+    - sced
+    - equivphyskloc
+    target: act_effort
+    column_map:
+      rely: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
+      data: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
+      cplx: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
+      time: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
+      stor: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
+      virt: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
+      turn: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
+      acap: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
+      aexp: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
+      pcap: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
+      vexp: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
+      lexp: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
+      modp: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
+      tool: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
+      sced: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
+    labels:
+      rely: "Reliability (Rely)"
+      data: "Database Size (Data)"
+      cplx: "Complexity (Cplx)"
+      time: "Execution Time Constraint (Time)"
+      stor: "Storage Constraint (Stor)"
+      virt: "Virtual Machine Volatility (Virt)"
+      turn: "Computer Turnaround (Turn)"
+      acap: "Analyst Capability (Acap)"
+      aexp: "Application Experience (Aexp)"
+      pcap: "Programmer Capability (Pcap)"
+      vexp: "VM Experience (Vexp)"
+      lexp: "Language Experience (Lexp)"
+      modp: "Modern Programming Practices (Modp)"
+      tool: "Software Tools (Tool)"
+      sced: "Schedule Constraint (Sced)"
+      equivphyskloc: "Ukuran Sistem (KLOC)"
+    hints:
+      rely: "Reliabilitas: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh | 6=xh"
+      data: "Ukuran DB relatif: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh | 6=xh"
+      cplx: "Kompleksitas produk: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh | 6=xh"
+      time: "Batasan waktu eksekusi: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh | 6=xh"
+      stor: "Batasan memori: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh | 6=xh"
+      virt: "Volatilitas VM: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh | 6=xh"
+      turn: "Turnaround komputer: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh | 6=xh"
+      acap: "Kemampuan analis: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh"
+      aexp: "Pengalaman aplikasi: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh"
+      pcap: "Kemampuan programmer: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh"
+      vexp: "Pengalaman VM: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh"
+      lexp: "Pengalaman bahasa: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh"
+      modp: "Praktik pemrograman modern: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh"
+      tool: "Alat bantu software: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh"
+      sced: "Jadwal: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh"
+      equivphyskloc: "Ukuran sistem dalam KLOC (ribuan baris kode). Contoh: 25.9"
+    effort_unit: person-months

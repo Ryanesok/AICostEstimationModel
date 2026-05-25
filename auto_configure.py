@@ -27,6 +27,10 @@ EXCLUDE_COLS = {
     "id", "project", "yearend", "year", "language",
     "pointsnonadjust", "pointsadjust", "pointsajust", "adjustment",
     "no", "num", "index", "idx",
+    # kitchenham identifiers
+    "client.code",
+    # nasa93 identifiers
+    "recordnumber", "center",
 }
 
 # Primary target keywords — direct effort/cost metrics; checked first in suggest_target()

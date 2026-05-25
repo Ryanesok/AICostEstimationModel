@@ -11,7 +11,7 @@ import yaml
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import make_scorer, mean_absolute_error
-from sklearn.model_selection import GridSearchCV, KFold, cross_validate
+from sklearn.model_selection import GridSearchCV, KFold, cross_val_predict, cross_validate
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
 from torch.utils.data import DataLoader, TensorDataset
@@ -43,6 +43,17 @@ LSTM_GRID_PARAMS = {
     "hidden_size": [32, 64, 128],
     "lr": [1e-3, 5e-4],
 }
+
+
+# ── Metric helpers ────────────────────────────────────────────────────────────
+
+def _mmre_pred25(y_true: np.ndarray, y_pred: np.ndarray) -> tuple[float, float]:
+    """Returns (MMRE, PRED25). Samples where y_true == 0 are skipped."""
+    mask = y_true != 0
+    if not mask.any():
+        return float("nan"), float("nan")
+    rel_err = np.abs(y_true[mask] - y_pred[mask]) / np.abs(y_true[mask])
+    return float(np.mean(rel_err)), float(np.mean(rel_err <= 0.25))
 
 
 # ── Model definitions ──────────────────────────────────────────────────────────
@@ -80,14 +91,19 @@ def load_dataset(csv_path: str) -> pd.DataFrame:
 
 # ── Preprocessing ──────────────────────────────────────────────────────────────
 
-def preprocess(df: pd.DataFrame, features: list[str], target: str):
+def preprocess(df: pd.DataFrame, features: list[str], target: str, column_map: dict | None = None):
+    if column_map:
+        df = df.copy()
+        for col, mapping in column_map.items():
+            if col in df.columns:
+                df[col] = df[col].map(mapping)
     df = df[features + [target]].dropna()
     if len(df) < 10:
         raise ValueError(
             f"Dataset has only {len(df)} usable rows after dropping NaN — "
             "cross-validation membutuhkan minimal 10 baris."
         )
-    X = df[features].values
+    X = df[features].values.astype(float)
     y = df[target].values
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
@@ -185,8 +201,10 @@ def train_lstm(
 
 def _lstm_cv_scores_with_params(
     X: np.ndarray, y: np.ndarray, kfold: KFold, hidden_size: int, lr: float
-) -> tuple[float, float]:
+) -> tuple[float, float, float, float]:
     mae_scores, r2_scores = [], []
+    all_y_true: list[float] = []
+    all_y_pred: list[float] = []
     for train_idx, val_idx in kfold.split(X):
         X_tr, X_val = X[train_idx], X[val_idx]
         y_tr, y_val = y[train_idx], y[val_idx]
@@ -198,7 +216,10 @@ def _lstm_cv_scores_with_params(
         ss_res = np.sum((y_val - preds) ** 2)
         ss_tot = np.sum((y_val - y_val.mean()) ** 2)
         r2_scores.append(1 - ss_res / ss_tot if ss_tot > 0 else 0.0)
-    return float(np.mean(mae_scores)), float(np.mean(r2_scores))
+        all_y_true.extend(y_val.tolist())
+        all_y_pred.extend(preds.flatten().tolist())
+    mmre, pred25 = _mmre_pred25(np.array(all_y_true), np.array(all_y_pred))
+    return float(np.mean(mae_scores)), float(np.mean(r2_scores)), mmre, pred25
 
 
 def train_lstm_with_tuning(
@@ -206,17 +227,23 @@ def train_lstm_with_tuning(
 ) -> tuple:
     best_mae = float("inf")
     best_r2 = 0.0
+    best_mmre = float("nan")
+    best_pred25 = float("nan")
     best_params: dict = {"hidden_size": 64, "lr": 1e-3}
     for hidden_size in LSTM_GRID_PARAMS["hidden_size"]:
         for lr in LSTM_GRID_PARAMS["lr"]:
-            cv_mae, cv_r2 = _lstm_cv_scores_with_params(X, y, kfold, hidden_size, lr)
+            cv_mae, cv_r2, cv_mmre, cv_pred25 = _lstm_cv_scores_with_params(
+                X, y, kfold, hidden_size, lr
+            )
             if cv_mae < best_mae:
                 best_mae = cv_mae
                 best_r2 = cv_r2
+                best_mmre = cv_mmre
+                best_pred25 = cv_pred25
                 best_params = {"hidden_size": hidden_size, "lr": lr}
     torch.manual_seed(42)
     model = train_lstm(X, y, input_size, **best_params)
-    return model, best_params, best_mae, best_r2
+    return model, best_params, best_mae, best_r2, best_mmre, best_pred25
 
 
 def evaluate_models(X: np.ndarray, y: np.ndarray, input_size: int) -> dict:
@@ -235,10 +262,26 @@ def evaluate_models(X: np.ndarray, y: np.ndarray, input_size: int) -> dict:
     svr_cv = cross_validate(gs.best_estimator_, X, y, cv=kfold, scoring=scoring)
     lr_cv = cross_validate(LinearRegression(), X, y, cv=kfold, scoring=scoring)
     _, rf_best_params = train_rf(X, y, kfold)
-    rf_cv = cross_validate(RandomForestRegressor(random_state=42, **rf_best_params), X, y, cv=kfold, scoring=scoring)
+    rf_estimator = RandomForestRegressor(random_state=42, **rf_best_params)
+    rf_cv = cross_validate(rf_estimator, X, y, cv=kfold, scoring=scoring)
+    rf_oof = cross_val_predict(rf_estimator, X, y, cv=kfold)
+    rf_mmre, rf_pred25 = _mmre_pred25(y, rf_oof)
+
     _, xgb_best_params = train_xgb(X, y, kfold)
-    xgb_cv = cross_validate(XGBRegressor(random_state=42, verbosity=0, **xgb_best_params), X, y, cv=kfold, scoring=scoring)
-    _, lstm_best_params, lstm_cv_mae, lstm_cv_r2 = train_lstm_with_tuning(X, y, input_size, kfold)
+    xgb_estimator = XGBRegressor(random_state=42, verbosity=0, **xgb_best_params)
+    xgb_cv = cross_validate(xgb_estimator, X, y, cv=kfold, scoring=scoring)
+    xgb_oof = cross_val_predict(xgb_estimator, X, y, cv=kfold)
+    xgb_mmre, xgb_pred25 = _mmre_pred25(y, xgb_oof)
+
+    _, lstm_best_params, lstm_cv_mae, lstm_cv_r2, lstm_mmre, lstm_pred25 = (
+        train_lstm_with_tuning(X, y, input_size, kfold)
+    )
+
+    svr_oof = cross_val_predict(gs.best_estimator_, X, y, cv=kfold)
+    svr_mmre, svr_pred25 = _mmre_pred25(y, svr_oof)
+
+    lr_oof = cross_val_predict(LinearRegression(), X, y, cv=kfold)
+    lr_mmre, lr_pred25 = _mmre_pred25(y, lr_oof)
 
     lr_mae = float(-lr_cv["test_mae"].mean())
     xgb_mae = float(-xgb_cv["test_mae"].mean())
@@ -261,17 +304,27 @@ def evaluate_models(X: np.ndarray, y: np.ndarray, input_size: int) -> dict:
         "cv_mae_std": float(svr_cv["test_mae"].std()),
         "cv_r2_mean": float(svr_cv["test_r2"].mean()),
         "cv_r2_std": float(svr_cv["test_r2"].std()),
+        "svr_mmre": svr_mmre,
+        "svr_pred25": svr_pred25,
         "lr_cv_mae_mean": lr_mae,
         "lr_cv_r2_mean": float(lr_cv["test_r2"].mean()),
+        "lr_mmre": lr_mmre,
+        "lr_pred25": lr_pred25,
         "rf_cv_mae_mean": float(-rf_cv["test_mae"].mean()),
         "rf_cv_r2_mean": float(rf_cv["test_r2"].mean()),
         "rf_best_params": rf_best_params,
+        "rf_mmre": rf_mmre,
+        "rf_pred25": rf_pred25,
         "xgb_cv_mae_mean": xgb_mae,
         "xgb_cv_r2_mean": float(xgb_cv["test_r2"].mean()),
         "xgb_best_params": xgb_best_params,
+        "xgb_mmre": xgb_mmre,
+        "xgb_pred25": xgb_pred25,
         "lstm_cv_mae_mean": lstm_mae,
         "lstm_cv_r2_mean": lstm_cv_r2,
         "lstm_best_params": lstm_best_params,
+        "lstm_mmre": lstm_mmre,
+        "lstm_pred25": lstm_pred25,
         "hybrid_weights": hybrid_weights,
     }
 
@@ -309,7 +362,7 @@ def train_and_export(csv_path: str) -> bool:
     features = [f for f in config["features"] if f != secondary]
 
     try:
-        X, y, scaler = preprocess(df, features, config["target"])
+        X, y, scaler = preprocess(df, features, config["target"], column_map=config.get("column_map"))
     except KeyError as exc:
         print(f"[WARNING] Column {exc} not found in '{os.path.basename(csv_path)}' — skipping.")
         print(f"          Check 'features' and 'target' in '{CONFIG_FILE}' for '{stem}'.")
@@ -322,6 +375,7 @@ def train_and_export(csv_path: str) -> bool:
     print(f"  [{stem}] Menjalankan 5-fold CV + GridSearchCV ({len(y)} baris, {input_size} fitur) ...")
     metrics = evaluate_models(X, y, input_size)
     metrics["trained_on_rows"] = int(len(y))
+    metrics["effort_unit"] = config.get("effort_unit", "person-months")
 
     print(f"  [{stem}] SVR  CV-MAE={metrics['cv_mae_mean']:.2f} ± {metrics['cv_mae_std']:.2f}  CV-R²={metrics['cv_r2_mean']:.4f}")
     print(f"  [{stem}] LR   CV-MAE={metrics['lr_cv_mae_mean']:.2f}  CV-R²={metrics['lr_cv_r2_mean']:.4f}")

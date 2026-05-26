@@ -24,16 +24,16 @@
     "max_depth": 5,
     "n_estimators": 300
   },
-  "lstm_cv_mae_mean": 656.1978748907187,
-  "lstm_cv_r2_mean": -0.3367255274451497,
+  "lstm_cv_mae_mean": 656.1978746394623,
+  "lstm_cv_r2_mean": -0.33672552690574037,
   "lstm_best_params": {
     "hidden_size": 128,
     "lr": 0.001
   },
   "hybrid_weights": {
-    "lstm": 0.3305549840042361,
-    "xgb": 0.46129286075722553,
-    "lr": 0.20815215523853836
+    "lstm": 0.33055498408896683,
+    "xgb": 0.46129286069884035,
+    "lr": 0.20815215521219285
   },
   "trained_on_rows": 63
 }

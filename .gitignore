@@ -30,10 +30,17 @@ pip-delete-this-directory.txt
 
 # IDE
 .idea/
-.vscode/
+.vscode/*
+!.vscode/settings.json
 *.swp
 *.swo
 *~
+
+# Claude Code — local machine-specific settings only
+.claude/settings.local.json
+
+# Last-used form inputs per dataset (machine-local, not for version control)
+last_inputs/
 
 # OS
 .DS_Store
@@ -51,8 +58,10 @@ temp/
 .ipynb_checkpoints/
 *.ipynb
 
-# PyTorch / ML (large binary artifacts — already tracked intentionally,
-# list here only if you want to untrack in the future via: git rm --cached)
+# PyTorch / ML (large binary artifacts — tracked intentionally for all datasets.
+# To stop tracking a specific file: git rm --cached <path>)
 # models/*.pt
 # models/*.pkl
+# models_bak/*.pt
+# models_bak/*.pkl
 # data/*.csv

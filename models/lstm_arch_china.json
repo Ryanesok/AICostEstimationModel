@@ -1,1 +1,1 @@
-{"input_size": 10, "hidden_size": 128}
+{"input_size": 10, "hidden_size": 128, "num_layers": 1}

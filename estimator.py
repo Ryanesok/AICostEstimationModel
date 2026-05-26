@@ -1,5 +1,6 @@
 import glob
 import json
+import math
 import os
 from dataclasses import dataclass, field
 
@@ -43,9 +44,9 @@ _MODEL_HYPERPARAMS_KEYS: dict[str, str | None] = {
 # ── Model definition ──────────────────────────────────────────────────────────
 
 class LSTMModel(nn.Module):
-    def __init__(self, input_size: int, hidden_size: int = 64):
+    def __init__(self, input_size: int, hidden_size: int = 64, num_layers: int = 1):
         super().__init__()
-        self.lstm = nn.LSTM(input_size, hidden_size, batch_first=True)
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers=num_layers, batch_first=True)
         self.fc = nn.Linear(hidden_size, 1)
 
     def forward(self, x):
@@ -77,6 +78,7 @@ class LoadedModels:
     xgb: object = None
     lstm: LSTMModel | None = None
     hybrid_weights: dict | None = field(default=None)
+    log_transform_target: bool = False
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -164,7 +166,7 @@ def load_estimator_models(stem: str, models_dir: str) -> LoadedModels:
     if os.path.exists(arch_path) and os.path.exists(pt_path):
         with open(arch_path, "r") as f:
             arch = json.load(f)
-        lstm = LSTMModel(arch["input_size"], arch.get("hidden_size", 64))
+        lstm = LSTMModel(arch["input_size"], arch.get("hidden_size", 64), arch.get("num_layers", 1))
         lstm.load_state_dict(torch.load(pt_path, map_location="cpu", weights_only=True))
         lstm.eval()
         m.lstm = lstm
@@ -174,6 +176,7 @@ def load_estimator_models(stem: str, models_dir: str) -> LoadedModels:
         with open(metrics_path, "r") as f:
             metrics = json.load(f)
         m.hybrid_weights = metrics.get("hybrid_weights")
+        m.log_transform_target = bool(metrics.get("log_transform_target", False))
 
     return m
 
@@ -185,30 +188,34 @@ def run_estimate(
     unit: str,
 ) -> float | None:
     """Run a single model prediction; return result in person-months."""
+    def _postprocess(raw: float) -> float:
+        v = math.expm1(raw) if models.log_transform_target else raw
+        return _to_person_months(v, unit)
+
     try:
         if model_name == "SVR":
             if models.svr is None:
                 return None
-            return _to_person_months(float(models.svr.predict(X_scaled)[0]), unit)
+            return _postprocess(float(models.svr.predict(X_scaled)[0]))
         if model_name == "Linear Regression":
             if models.lr is None:
                 return None
-            return _to_person_months(float(models.lr.predict(X_scaled)[0]), unit)
+            return _postprocess(float(models.lr.predict(X_scaled)[0]))
         if model_name == "Random Forest":
             if models.rf is None:
                 return None
-            return _to_person_months(float(models.rf.predict(X_scaled)[0]), unit)
+            return _postprocess(float(models.rf.predict(X_scaled)[0]))
         if model_name == "XGBoost":
             if models.xgb is None:
                 return None
-            return _to_person_months(float(models.xgb.predict(X_scaled)[0]), unit)
+            return _postprocess(float(models.xgb.predict(X_scaled)[0]))
         if model_name == "LSTM":
             if models.lstm is None:
                 return None
             xt = torch.tensor(X_scaled, dtype=torch.float32).unsqueeze(1)
             with torch.no_grad():
                 raw = float(models.lstm(xt).item())
-            return _to_person_months(raw, unit)
+            return _postprocess(raw)
     except Exception:
         return None
     return None
@@ -229,16 +236,20 @@ def run_hybrid_estimate(
     if not weights:
         return None
 
+    # Inverse-transform each model output before averaging (weighted mean in original scale)
     raw: dict[str, float] = {}
     try:
         if models.lr is not None and weights.get("lr", 0) > 0:
-            raw["lr"] = float(models.lr.predict(X_scaled)[0])
+            v = float(models.lr.predict(X_scaled)[0])
+            raw["lr"] = math.expm1(v) if models.log_transform_target else v
         if models.xgb is not None and weights.get("xgb", 0) > 0:
-            raw["xgb"] = float(models.xgb.predict(X_scaled)[0])
+            v = float(models.xgb.predict(X_scaled)[0])
+            raw["xgb"] = math.expm1(v) if models.log_transform_target else v
         if models.lstm is not None and weights.get("lstm", 0) > 0:
             xt = torch.tensor(X_scaled, dtype=torch.float32).unsqueeze(1)
             with torch.no_grad():
-                raw["lstm"] = float(models.lstm(xt).item())
+                v = float(models.lstm(xt).item())
+            raw["lstm"] = math.expm1(v) if models.log_transform_target else v
     except Exception:
         pass
 

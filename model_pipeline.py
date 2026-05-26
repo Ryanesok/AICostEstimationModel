@@ -10,8 +10,8 @@ import torch.nn as nn
 import yaml
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import make_scorer, mean_absolute_error
-from sklearn.model_selection import GridSearchCV, KFold, cross_val_predict, cross_validate
+from sklearn.metrics import make_scorer, mean_absolute_error, r2_score
+from sklearn.model_selection import GridSearchCV, KFold, RandomizedSearchCV, cross_val_predict, cross_validate
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
 from torch.utils.data import DataLoader, TensorDataset
@@ -34,18 +34,31 @@ XGB_GRID_PARAMS = {
 }
 
 RF_GRID_PARAMS = {
-    "n_estimators": [100, 200],
-    "max_depth": [None, 10, 20],
-    "min_samples_split": [2, 5],
+    "n_estimators": [100, 200, 300],
+    "max_depth": [None, 10, 20, 30],
+    "min_samples_split": [2, 5, 10],
 }
 
 LSTM_GRID_PARAMS = {
     "hidden_size": [32, 64, 128],
+    "num_layers": [1, 2],
     "lr": [1e-3, 5e-4],
 }
 
 
 # ── Metric helpers ────────────────────────────────────────────────────────────
+
+def _inverse_transform(arr: np.ndarray, log_transform: bool) -> np.ndarray:
+    return np.expm1(arr) if log_transform else arr
+
+
+def _safe_oof(pred_log: np.ndarray, y_log: np.ndarray, log_transform: bool) -> np.ndarray:
+    """Inverse-transform OOF predictions; clips to training range to prevent expm1 blowup."""
+    if not log_transform:
+        return pred_log
+    lo, hi = float(y_log.min()) - 2.0, float(y_log.max()) + 2.0
+    return np.expm1(np.clip(pred_log, lo, hi))
+
 
 def _mmre_pred25(y_true: np.ndarray, y_pred: np.ndarray) -> tuple[float, float]:
     """Returns (MMRE, PRED25). Samples where y_true == 0 are skipped."""
@@ -59,9 +72,9 @@ def _mmre_pred25(y_true: np.ndarray, y_pred: np.ndarray) -> tuple[float, float]:
 # ── Model definitions ──────────────────────────────────────────────────────────
 
 class LSTMModel(nn.Module):
-    def __init__(self, input_size: int, hidden_size: int = 64):
+    def __init__(self, input_size: int, hidden_size: int = 64, num_layers: int = 1):
         super().__init__()
-        self.lstm = nn.LSTM(input_size, hidden_size, batch_first=True)
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers=num_layers, batch_first=True)
         self.fc = nn.Linear(hidden_size, 1)
 
     def forward(self, x):
@@ -91,7 +104,28 @@ def load_dataset(csv_path: str) -> pd.DataFrame:
 
 # ── Preprocessing ──────────────────────────────────────────────────────────────
 
-def preprocess(df: pd.DataFrame, features: list[str], target: str, column_map: dict | None = None):
+def _iqr_clip(arr: np.ndarray) -> np.ndarray:
+    """Clip values outside [Q1 - 1.5×IQR, Q3 + 1.5×IQR] per column (or 1-D array)."""
+    if arr.ndim == 1:
+        q1, q3 = np.percentile(arr, 25), np.percentile(arr, 75)
+        iqr = q3 - q1
+        return np.clip(arr, q1 - 1.5 * iqr, q3 + 1.5 * iqr)
+    clipped = arr.copy()
+    for j in range(arr.shape[1]):
+        q1, q3 = np.percentile(arr[:, j], 25), np.percentile(arr[:, j], 75)
+        iqr = q3 - q1
+        clipped[:, j] = np.clip(arr[:, j], q1 - 1.5 * iqr, q3 + 1.5 * iqr)
+    return clipped
+
+
+def preprocess(
+    df: pd.DataFrame,
+    features: list[str],
+    target: str,
+    column_map: dict | None = None,
+    log_transform: bool = False,
+    clip_outliers: bool = False,
+):
     if column_map:
         df = df.copy()
         for col, mapping in column_map.items():
@@ -104,24 +138,31 @@ def preprocess(df: pd.DataFrame, features: list[str], target: str, column_map: d
             "cross-validation membutuhkan minimal 10 baris."
         )
     X = df[features].values.astype(float)
-    y = df[target].values
+    y = df[target].values.astype(float)
+    if clip_outliers:
+        X = _iqr_clip(X)
+        y = _iqr_clip(y)
+    if log_transform:
+        y = np.log1p(y)
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
-    return X_scaled, y, scaler
+    return X_scaled, y, scaler, log_transform
 
 
 # ── Training functions ─────────────────────────────────────────────────────────
 
 def train_rf(X: np.ndarray, y: np.ndarray, kfold: KFold):
-    gs = GridSearchCV(
+    rs = RandomizedSearchCV(
         RandomForestRegressor(random_state=42),
         RF_GRID_PARAMS,
+        n_iter=30,
         cv=kfold,
         scoring="neg_mean_absolute_error",
         n_jobs=-1,
+        random_state=42,
     )
-    gs.fit(X, y)
-    return gs.best_estimator_, gs.best_params_
+    rs.fit(X, y)
+    return rs.best_estimator_, rs.best_params_
 
 
 def train_xgb(X: np.ndarray, y: np.ndarray, kfold: KFold):
@@ -141,6 +182,7 @@ def train_lstm(
     y: np.ndarray,
     input_size: int,
     hidden_size: int = 64,
+    num_layers: int = 1,
     lr: float = 1e-3,
     epochs: int = 200,
     patience: int = 20,
@@ -161,7 +203,7 @@ def train_lstm(
         TensorDataset(X_tr_t, y_tr_t), batch_size=16, shuffle=True
     )
 
-    model = LSTMModel(input_size, hidden_size)
+    model = LSTMModel(input_size, hidden_size, num_layers)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     criterion = nn.MSELoss()
 
@@ -200,53 +242,61 @@ def train_lstm(
 # ── Evaluation ─────────────────────────────────────────────────────────────────
 
 def _lstm_cv_scores_with_params(
-    X: np.ndarray, y: np.ndarray, kfold: KFold, hidden_size: int, lr: float
-) -> tuple[float, float, float, float]:
-    mae_scores, r2_scores = [], []
+    X: np.ndarray, y: np.ndarray, kfold: KFold, hidden_size: int, num_layers: int, lr: float,
+    log_transform: bool = False,
+) -> tuple[float, float, float, float, float]:
+    r2_scores = []
     all_y_true: list[float] = []
     all_y_pred: list[float] = []
     for train_idx, val_idx in kfold.split(X):
         X_tr, X_val = X[train_idx], X[val_idx]
         y_tr, y_val = y[train_idx], y[val_idx]
         torch.manual_seed(42)
-        m = train_lstm(X_tr, y_tr, input_size=X_tr.shape[1], hidden_size=hidden_size, lr=lr)
+        m = train_lstm(X_tr, y_tr, input_size=X_tr.shape[1], hidden_size=hidden_size, num_layers=num_layers, lr=lr)
         with torch.no_grad():
             preds = m(torch.tensor(X_val, dtype=torch.float32).unsqueeze(1)).numpy()
-        mae_scores.append(mean_absolute_error(y_val, preds))
         ss_res = np.sum((y_val - preds) ** 2)
         ss_tot = np.sum((y_val - y_val.mean()) ** 2)
         r2_scores.append(1 - ss_res / ss_tot if ss_tot > 0 else 0.0)
         all_y_true.extend(y_val.tolist())
         all_y_pred.extend(preds.flatten().tolist())
-    mmre, pred25 = _mmre_pred25(np.array(all_y_true), np.array(all_y_pred))
-    return float(np.mean(mae_scores)), float(np.mean(r2_scores)), mmre, pred25
+    arr_true = _safe_oof(np.array(all_y_true), y, log_transform)
+    arr_pred = _safe_oof(np.array(all_y_pred), y, log_transform)
+    mmre, pred25 = _mmre_pred25(arr_true, arr_pred)
+    mae = float(np.mean(np.abs(arr_true - arr_pred)))
+    rmse = float(np.sqrt(np.mean((arr_true - arr_pred) ** 2)))
+    r2 = float(r2_score(arr_true, arr_pred)) if len(arr_true) > 1 else 0.0
+    return mae, r2, mmre, pred25, rmse
 
 
 def train_lstm_with_tuning(
-    X: np.ndarray, y: np.ndarray, input_size: int, kfold: KFold
+    X: np.ndarray, y: np.ndarray, input_size: int, kfold: KFold, log_transform: bool = False,
 ) -> tuple:
     best_mae = float("inf")
     best_r2 = 0.0
     best_mmre = float("nan")
     best_pred25 = float("nan")
-    best_params: dict = {"hidden_size": 64, "lr": 1e-3}
+    best_rmse = float("nan")
+    best_params: dict = {"hidden_size": 64, "num_layers": 1, "lr": 1e-3}
     for hidden_size in LSTM_GRID_PARAMS["hidden_size"]:
-        for lr in LSTM_GRID_PARAMS["lr"]:
-            cv_mae, cv_r2, cv_mmre, cv_pred25 = _lstm_cv_scores_with_params(
-                X, y, kfold, hidden_size, lr
-            )
-            if cv_mae < best_mae:
-                best_mae = cv_mae
-                best_r2 = cv_r2
-                best_mmre = cv_mmre
-                best_pred25 = cv_pred25
-                best_params = {"hidden_size": hidden_size, "lr": lr}
+        for num_layers in LSTM_GRID_PARAMS["num_layers"]:
+            for lr in LSTM_GRID_PARAMS["lr"]:
+                cv_mae, cv_r2, cv_mmre, cv_pred25, cv_rmse = _lstm_cv_scores_with_params(
+                    X, y, kfold, hidden_size, num_layers, lr, log_transform=log_transform,
+                )
+                if cv_mae < best_mae:
+                    best_mae = cv_mae
+                    best_r2 = cv_r2
+                    best_mmre = cv_mmre
+                    best_pred25 = cv_pred25
+                    best_rmse = cv_rmse
+                    best_params = {"hidden_size": hidden_size, "num_layers": num_layers, "lr": lr}
     torch.manual_seed(42)
     model = train_lstm(X, y, input_size, **best_params)
-    return model, best_params, best_mae, best_r2, best_mmre, best_pred25
+    return model, best_params, best_mae, best_r2, best_mmre, best_pred25, best_rmse
 
 
-def evaluate_models(X: np.ndarray, y: np.ndarray, input_size: int) -> dict:
+def evaluate_models(X: np.ndarray, y: np.ndarray, input_size: int, log_transform: bool = False) -> dict:
     kfold = KFold(n_splits=5, shuffle=True, random_state=42)
     scoring = {
         "mae": make_scorer(mean_absolute_error, greater_is_better=False),
@@ -264,28 +314,48 @@ def evaluate_models(X: np.ndarray, y: np.ndarray, input_size: int) -> dict:
     _, rf_best_params = train_rf(X, y, kfold)
     rf_estimator = RandomForestRegressor(random_state=42, **rf_best_params)
     rf_cv = cross_validate(rf_estimator, X, y, cv=kfold, scoring=scoring)
-    rf_oof = cross_val_predict(rf_estimator, X, y, cv=kfold)
-    rf_mmre, rf_pred25 = _mmre_pred25(y, rf_oof)
+    rf_oof = _safe_oof(cross_val_predict(rf_estimator, X, y, cv=kfold), y, log_transform)
+    y_orig = _inverse_transform(y, log_transform)
+    rf_mmre, rf_pred25 = _mmre_pred25(y_orig, rf_oof)
+    rf_rmse = float(np.sqrt(np.mean((y_orig - rf_oof) ** 2)))
 
     _, xgb_best_params = train_xgb(X, y, kfold)
     xgb_estimator = XGBRegressor(random_state=42, verbosity=0, **xgb_best_params)
     xgb_cv = cross_validate(xgb_estimator, X, y, cv=kfold, scoring=scoring)
-    xgb_oof = cross_val_predict(xgb_estimator, X, y, cv=kfold)
-    xgb_mmre, xgb_pred25 = _mmre_pred25(y, xgb_oof)
+    xgb_oof = _safe_oof(cross_val_predict(xgb_estimator, X, y, cv=kfold), y, log_transform)
+    xgb_mmre, xgb_pred25 = _mmre_pred25(y_orig, xgb_oof)
+    xgb_rmse = float(np.sqrt(np.mean((y_orig - xgb_oof) ** 2)))
 
-    _, lstm_best_params, lstm_cv_mae, lstm_cv_r2, lstm_mmre, lstm_pred25 = (
-        train_lstm_with_tuning(X, y, input_size, kfold)
+    _, lstm_best_params, lstm_cv_mae, lstm_cv_r2, lstm_mmre, lstm_pred25, lstm_rmse = (
+        train_lstm_with_tuning(X, y, input_size, kfold, log_transform=log_transform)
     )
 
-    svr_oof = cross_val_predict(gs.best_estimator_, X, y, cv=kfold)
-    svr_mmre, svr_pred25 = _mmre_pred25(y, svr_oof)
+    svr_oof = _safe_oof(cross_val_predict(gs.best_estimator_, X, y, cv=kfold), y, log_transform)
+    svr_mmre, svr_pred25 = _mmre_pred25(y_orig, svr_oof)
+    svr_rmse = float(np.sqrt(np.mean((y_orig - svr_oof) ** 2)))
 
-    lr_oof = cross_val_predict(LinearRegression(), X, y, cv=kfold)
-    lr_mmre, lr_pred25 = _mmre_pred25(y, lr_oof)
+    lr_oof = _safe_oof(cross_val_predict(LinearRegression(), X, y, cv=kfold), y, log_transform)
+    lr_mmre, lr_pred25 = _mmre_pred25(y_orig, lr_oof)
+    lr_rmse = float(np.sqrt(np.mean((y_orig - lr_oof) ** 2)))
 
-    lr_mae = float(-lr_cv["test_mae"].mean())
-    xgb_mae = float(-xgb_cv["test_mae"].mean())
+    # All MAE and R² computed in original scale from OOF predictions
+    if log_transform:
+        svr_mae = float(mean_absolute_error(y_orig, svr_oof))
+        lr_mae = float(mean_absolute_error(y_orig, lr_oof))
+        rf_mae = float(mean_absolute_error(y_orig, rf_oof))
+        xgb_mae = float(mean_absolute_error(y_orig, xgb_oof))
+    else:
+        svr_mae = float(-svr_cv["test_mae"].mean())
+        lr_mae = float(-lr_cv["test_mae"].mean())
+        rf_mae = float(-rf_cv["test_mae"].mean())
+        xgb_mae = float(-xgb_cv["test_mae"].mean())
     lstm_mae = float(lstm_cv_mae)
+
+    # R² in original scale from OOF predictions (replaces log-space cross_validate R²)
+    svr_r2 = float(r2_score(y_orig, svr_oof))
+    lr_r2 = float(r2_score(y_orig, lr_oof))
+    rf_r2 = float(r2_score(y_orig, rf_oof))
+    xgb_r2 = float(r2_score(y_orig, xgb_oof))
 
     # Hybrid weights: inverse MAE, normalized (LSTM + XGBoost + LR)
     w_lstm = 1.0 / max(lstm_mae, 1e-6)
@@ -300,27 +370,32 @@ def evaluate_models(X: np.ndarray, y: np.ndarray, input_size: int) -> dict:
 
     return {
         "best_svr_params": gs.best_params_,
-        "cv_mae_mean": float(-svr_cv["test_mae"].mean()),
+        "cv_mae_mean": svr_mae,
         "cv_mae_std": float(svr_cv["test_mae"].std()),
-        "cv_r2_mean": float(svr_cv["test_r2"].mean()),
+        "cv_rmse_mean": svr_rmse,
+        "cv_r2_mean": svr_r2,
         "cv_r2_std": float(svr_cv["test_r2"].std()),
         "svr_mmre": svr_mmre,
         "svr_pred25": svr_pred25,
         "lr_cv_mae_mean": lr_mae,
-        "lr_cv_r2_mean": float(lr_cv["test_r2"].mean()),
+        "lr_cv_rmse_mean": lr_rmse,
+        "lr_cv_r2_mean": lr_r2,
         "lr_mmre": lr_mmre,
         "lr_pred25": lr_pred25,
-        "rf_cv_mae_mean": float(-rf_cv["test_mae"].mean()),
-        "rf_cv_r2_mean": float(rf_cv["test_r2"].mean()),
+        "rf_cv_mae_mean": rf_mae,
+        "rf_cv_rmse_mean": rf_rmse,
+        "rf_cv_r2_mean": rf_r2,
         "rf_best_params": rf_best_params,
         "rf_mmre": rf_mmre,
         "rf_pred25": rf_pred25,
         "xgb_cv_mae_mean": xgb_mae,
-        "xgb_cv_r2_mean": float(xgb_cv["test_r2"].mean()),
+        "xgb_cv_rmse_mean": xgb_rmse,
+        "xgb_cv_r2_mean": xgb_r2,
         "xgb_best_params": xgb_best_params,
         "xgb_mmre": xgb_mmre,
         "xgb_pred25": xgb_pred25,
         "lstm_cv_mae_mean": lstm_mae,
+        "lstm_cv_rmse_mean": lstm_rmse,
         "lstm_cv_r2_mean": lstm_cv_r2,
         "lstm_best_params": lstm_best_params,
         "lstm_mmre": lstm_mmre,
@@ -361,8 +436,15 @@ def train_and_export(csv_path: str) -> bool:
     secondary = config.get("secondary_target")
     features = [f for f in config["features"] if f != secondary]
 
+    log_transform = bool(config.get("log_transform_target", False))
+    clip_outliers = bool(config.get("clip_outliers", False))
     try:
-        X, y, scaler = preprocess(df, features, config["target"], column_map=config.get("column_map"))
+        X, y, scaler, log_transform = preprocess(
+            df, features, config["target"],
+            column_map=config.get("column_map"),
+            log_transform=log_transform,
+            clip_outliers=clip_outliers,
+        )
     except KeyError as exc:
         print(f"[WARNING] Column {exc} not found in '{os.path.basename(csv_path)}' — skipping.")
         print(f"          Check 'features' and 'target' in '{CONFIG_FILE}' for '{stem}'.")
@@ -373,9 +455,10 @@ def train_and_export(csv_path: str) -> bool:
 
     input_size = X.shape[1]
     print(f"  [{stem}] Menjalankan 5-fold CV + GridSearchCV ({len(y)} baris, {input_size} fitur) ...")
-    metrics = evaluate_models(X, y, input_size)
+    metrics = evaluate_models(X, y, input_size, log_transform=log_transform)
     metrics["trained_on_rows"] = int(len(y))
     metrics["effort_unit"] = config.get("effort_unit", "person-months")
+    metrics["log_transform_target"] = log_transform
 
     print(f"  [{stem}] SVR  CV-MAE={metrics['cv_mae_mean']:.2f} ± {metrics['cv_mae_std']:.2f}  CV-R²={metrics['cv_r2_mean']:.4f}")
     print(f"  [{stem}] LR   CV-MAE={metrics['lr_cv_mae_mean']:.2f}  CV-R²={metrics['lr_cv_r2_mean']:.4f}")
@@ -399,6 +482,7 @@ def train_and_export(csv_path: str) -> bool:
     final_lstm = train_lstm(X, y, input_size, **metrics["lstm_best_params"])
 
     lstm_hidden = metrics["lstm_best_params"]["hidden_size"]
+    lstm_num_layers = metrics["lstm_best_params"].get("num_layers", 1)
     os.makedirs(MODELS_DIR, exist_ok=True)
     joblib.dump(final_svr, os.path.join(MODELS_DIR, f"svr_{stem}.pkl"))
     joblib.dump(final_lr, os.path.join(MODELS_DIR, f"linreg_{stem}.pkl"))
@@ -407,7 +491,7 @@ def train_and_export(csv_path: str) -> bool:
     joblib.dump(final_xgb, os.path.join(MODELS_DIR, f"xgb_{stem}.pkl"))
     torch.save(final_lstm.state_dict(), os.path.join(MODELS_DIR, f"lstm_{stem}.pt"))
     with open(os.path.join(MODELS_DIR, f"lstm_arch_{stem}.json"), "w") as f:
-        json.dump({"input_size": input_size, "hidden_size": lstm_hidden}, f)
+        json.dump({"input_size": input_size, "hidden_size": lstm_hidden, "num_layers": lstm_num_layers}, f)
     save_metrics(stem, metrics)
 
     print(

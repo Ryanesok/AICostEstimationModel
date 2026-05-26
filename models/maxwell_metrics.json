@@ -17,23 +17,23 @@
     "min_samples_split": 5,
     "n_estimators": 100
   },
-  "xgb_cv_mae_mean": 6149.6695569160665,
-  "xgb_cv_r2_mean": -0.687827605383769,
+  "xgb_cv_mae_mean": 6149.66943359375,
+  "xgb_cv_r2_mean": -0.6878276109695435,
   "xgb_best_params": {
     "learning_rate": 0.05,
     "max_depth": 5,
     "n_estimators": 100
   },
-  "lstm_cv_mae_mean": 8106.175687717094,
-  "lstm_cv_r2_mean": -1.2281229197808523,
+  "lstm_cv_mae_mean": 8106.17568359375,
+  "lstm_cv_r2_mean": -1.2281229197924832,
   "lstm_best_params": {
     "hidden_size": 128,
     "lr": 0.001
   },
   "hybrid_weights": {
-    "lstm": 0.31634849593269077,
-    "xgb": 0.41699419177596103,
-    "lr": 0.26665731229134826
+    "lstm": 0.31634849339733573,
+    "xgb": 0.41699419658406395,
+    "lr": 0.2666573100186004
   },
   "trained_on_rows": 62
 }

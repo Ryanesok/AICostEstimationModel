@@ -36,7 +36,7 @@ pip install torch --index-url https://download.pytorch.org/whl/cpu
 ### Langkah 2 — Download dataset
 
 ```bash
-python downloader.py
+python pipeline/downloader.py
 ```
 
 Mengunduh empat file CSV ke folder `data/`: COCOMO-81, Desharnais, China, Maxwell.
@@ -44,18 +44,20 @@ Mengunduh empat file CSV ke folder `data/`: COCOMO-81, Desharnais, China, Maxwel
 ### Langkah 3 — Konfigurasi dataset (opsional)
 
 ```bash
-python auto_configure.py
+python pipeline/build.py --configure
 ```
 
-Mendeteksi kolom secara otomatis, memilih target, dan memeriksa kebocoran fitur. Hasilnya disimpan di `dataset_config.yaml`. Langkah ini sudah memiliki default yang baik — lewati jika tidak ada kustomisasi.
+Mendeteksi kolom secara otomatis, memilih target, dan memeriksa kebocoran fitur. Hasilnya disimpan di `pipeline/dataset_config.yaml`. Langkah ini sudah memiliki default yang baik — lewati jika tidak ada kustomisasi.
 
 ### Langkah 4 — Latih model
 
 ```bash
-python model_pipeline.py
+python pipeline/build.py --train
 ```
 
 Melatih semua enam model untuk setiap dataset menggunakan 5-fold cross-validation. Model disimpan ke folder `models/`.
+
+> **Tip:** Jalankan `python pipeline/build.py` (tanpa flag) untuk menjalankan konfigurasi dan training sekaligus.
 
 ### Langkah 5 — Jalankan aplikasi
 
@@ -88,22 +90,24 @@ Semua model dievaluasi dengan 5-fold CV. Metrik tersimpan di `models/<dataset>_m
 AICostEstimationModel/
 │
 ├── app.py                   # Antarmuka GUI (CustomTkinter)
-├── model_pipeline.py        # Training + export semua model
-├── auto_configure.py        # Deteksi otomatis kolom & konfigurasi
-├── downloader.py            # Mengunduh dataset CSV
-│
-├── dataset_config.yaml      # Konfigurasi fitur, target, label, hint per dataset
-├── field_labels.yaml        # Default label & hint (fallback auto_configure)
-├── datasets.txt             # Daftar URL dataset untuk downloader
 ├── requirements.txt         # Dependensi Python
 │
-├── data/                    # Dataset CSV (dihasilkan oleh downloader.py)
+├── pipeline/                # Semua skrip non-UI (data & model)
+│   ├── __init__.py
+│   ├── build.py             # Konfigurasi + training (gabungan auto_configure & model_pipeline)
+│   ├── downloader.py        # Mengunduh dataset CSV
+│   ├── estimator.py         # Inferensi model (digunakan oleh app.py)
+│   ├── dataset_config.yaml  # Konfigurasi fitur, target, label, hint per dataset
+│   ├── field_labels.yaml    # Default label & hint
+│   └── datasets.txt         # Daftar URL dataset untuk downloader
+│
+├── data/                    # Dataset CSV (dihasilkan oleh pipeline/downloader.py)
 │   ├── COCOMO-81.csv
 │   ├── Desharnais.csv
 │   ├── china.csv
 │   └── maxwell.csv
 │
-├── models/                  # Model terlatih (dihasilkan oleh model_pipeline.py)
+├── models/                  # Model terlatih (dihasilkan oleh pipeline/build.py --train)
 │   ├── svr_<dataset>.pkl
 │   ├── linreg_<dataset>.pkl
 │   ├── rf_<dataset>.pkl
@@ -113,7 +117,8 @@ AICostEstimationModel/
 │   ├── lstm_arch_<dataset>.json
 │   └── <dataset>_metrics.json
 │
-├── docs/                    # Panduan pengisian field per dataset
+├── docs/                    # Panduan & roadmap
+│   ├── roadmap.md
 │   ├── cocomo-81.md
 │   ├── desharnais.md
 │   ├── china.md
@@ -137,4 +142,4 @@ Lihat folder `docs/` untuk panduan lengkap per dataset:
 
 ## Roadmap
 
-Lihat [roadmap.md](roadmap.md) untuk ringkasan apa yang sudah dirilis, sedang dikerjakan, dan arah pengembangan ke depan.
+Lihat [docs/roadmap.md](docs/roadmap.md) untuk ringkasan apa yang sudah dirilis, sedang dikerjakan, dan arah pengembangan ke depan.

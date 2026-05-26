@@ -77,75 +77,49 @@ datasets:
       Adjusted.function.points: 'Jumlah Function Points yang sudah disesuaikan (AFP). Contoh: 250'
       First.estimate: 'Estimasi effort awal sebelum proyek dimulai, dalam person-hours. Contoh: 1500'
     effort_unit: person-hours
-  nasa93:
+    secondary_target: Duration
+  subbiah:
     features:
-    - rely
-    - data
-    - cplx
-    - time
-    - stor
-    - virt
-    - turn
-    - acap
-    - aexp
-    - pcap
-    - vexp
-    - lexp
-    - modp
-    - tool
-    - sced
-    - equivphyskloc
-    target: act_effort
-    log_transform_target: true
-    clip_outliers: false
-    column_map:
-      rely: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
-      data: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
-      cplx: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
-      time: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
-      stor: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
-      virt: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
-      turn: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
-      acap: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
-      aexp: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
-      pcap: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
-      vexp: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
-      lexp: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
-      modp: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
-      tool: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
-      sced: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
+    - TotalUFP
+    - ExternalInterface
+    - ExternalInputs
+    - ExternalOutputs
+    - ExternalQueries
+    - InternalLogicalFiles
+    - Adjustment
+    target: Actual_des
     labels:
-      rely: "Reliability (Rely)"
-      data: "Database Size (Data)"
-      cplx: "Complexity (Cplx)"
-      time: "Execution Time Constraint (Time)"
-      stor: "Storage Constraint (Stor)"
-      virt: "Virtual Machine Volatility (Virt)"
-      turn: "Computer Turnaround (Turn)"
-      acap: "Analyst Capability (Acap)"
-      aexp: "Application Experience (Aexp)"
-      pcap: "Programmer Capability (Pcap)"
-      vexp: "VM Experience (Vexp)"
-      lexp: "Language Experience (Lexp)"
-      modp: "Modern Programming Practices (Modp)"
-      tool: "Software Tools (Tool)"
-      sced: "Schedule Constraint (Sced)"
-      equivphyskloc: "Ukuran Sistem (KLOC)"
+      TotalUFP: Total Unadjusted Function Points (UFP)
+      ExternalInterface: External Interface Files (EIF)
+      ExternalInputs: External Inputs (EI)
+      ExternalOutputs: External Outputs (EO)
+      ExternalQueries: External Enquiries (EQ)
+      InternalLogicalFiles: Internal Logical Files (ILF)
+      Adjustment: Adjustment Factor (AF)
     hints:
-      rely: "Reliabilitas: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh | 6=xh"
-      data: "Ukuran DB relatif: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh | 6=xh"
-      cplx: "Kompleksitas produk: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh | 6=xh"
-      time: "Batasan waktu eksekusi: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh | 6=xh"
-      stor: "Batasan memori: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh | 6=xh"
-      virt: "Volatilitas VM: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh | 6=xh"
-      turn: "Turnaround komputer: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh | 6=xh"
-      acap: "Kemampuan analis: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh"
-      aexp: "Pengalaman aplikasi: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh"
-      pcap: "Kemampuan programmer: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh"
-      vexp: "Pengalaman VM: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh"
-      lexp: "Pengalaman bahasa: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh"
-      modp: "Praktik pemrograman modern: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh"
-      tool: "Alat bantu software: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh"
-      sced: "Jadwal: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh"
-      equivphyskloc: "Ukuran sistem dalam KLOC (ribuan baris kode). Contoh: 25.9"
-    effort_unit: person-months
+      TotalUFP: 'Total Unadjusted Function Points sebelum adjustment. Contoh: 200'
+      ExternalInterface: 'External Interface Files yang dikelola oleh sistem eksternal.
+        Contoh: 5'
+      ExternalInputs: 'External Inputs untuk proses transformasi data. Contoh: 20'
+      ExternalOutputs: 'External Outputs hasil transformasi. Contoh: 15'
+      ExternalQueries: 'External Enquiries (input-output tanpa transformasi). Contoh:
+        10'
+      InternalLogicalFiles: 'Internal Logical Files yang dikelola sistem. Contoh:
+        8'
+      Adjustment: 'Adjustment Factor untuk menghitung AFP dari UFP. Contoh: 1.1'
+    effort_unit: person-hours
+    notes: Subbiah Dataset - 72 proyek dengan Function Points metrics
+  isbsg10:
+    features:
+    - FS
+    - N_PDR
+    - Resource_Level
+    target: N_effort
+  kemerer:
+    features:
+    - Hardware
+    - KSLOC
+    - AdjFP
+    - RAWFP
+    - EffortMM
+    target: Duration

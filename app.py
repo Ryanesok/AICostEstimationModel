@@ -13,7 +13,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import numpy as np
 import yaml
 
-from estimator import (
+from pipeline.estimator import (
     EstimatorResult,
     LoadedModels,
     load_estimator_models,
@@ -26,7 +26,7 @@ ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
 MODELS_DIR = "models"
-CONFIG_FILE = "dataset_config.yaml"
+CONFIG_FILE = "pipeline/dataset_config.yaml"
 HOURS_PER_MONTH = 160
 
 _COMPARISON_MODELS = ["SVR", "Linear Regression", "Random Forest", "XGBoost", "LSTM", "Hybrid"]
@@ -165,9 +165,9 @@ class App(ctk.CTk):
             text=(
                 "Tidak ada model terlatih di folder 'models/'.\n\n"
                 "Jalankan langkah berikut:\n"
-                "  1. python downloader.py\n"
-                "  2. python auto_configure.py\n"
-                "  3. python model_pipeline.py"
+                "  1. python pipeline/downloader.py\n"
+                "  2. python pipeline/build.py --configure\n"
+                "  3. python pipeline/build.py --train"
             ),
             text_color="gray70", font=ctk.CTkFont(size=12), justify="left",
         ).pack(padx=16, pady=(0, 14))

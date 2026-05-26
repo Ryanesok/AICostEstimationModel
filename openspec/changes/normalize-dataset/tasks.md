@@ -41,4 +41,4 @@
 
 - [x] 6.1 Jalankan `python model_pipeline.py` untuk retrain semua dataset dengan flag baru; verifikasi `_metrics.json` masing-masing mengandung `"log_transform_target"` dengan nilai yang benar
 - [x] 6.2 Verifikasi metrik (MAE, MMSE) dalam `_metrics.json` berada dalam satuan asli (bukan log-space) — bandingkan dengan nilai sebelumnya: MAE seharusnya turun signifikan untuk dataset dengan skewness tinggi
-- [ ] 6.3 Jalankan app, lakukan estimasi pada satu dataset — verifikasi hasil prediksi masuk akal (tidak berupa nilai log-space seperti "3.2 person-months" untuk proyek besar)
+- [x] 6.3 Jalankan app, lakukan estimasi pada satu dataset — verifikasi hasil prediksi masuk akal (tidak berupa nilai log-space seperti "3.2 person-months" untuk proyek besar)

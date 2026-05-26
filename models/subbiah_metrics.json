@@ -1,39 +1,57 @@
 {
   "best_svr_params": {
-    "C": 100,
-    "epsilon": 0.01,
+    "C": 0.1,
+    "epsilon": 0.1,
     "kernel": "linear"
   },
-  "cv_mae_mean": 183208.19755118468,
-  "cv_mae_std": 46424.7052999002,
-  "cv_r2_mean": -0.11608369727549865,
-  "cv_r2_std": 0.09776441447002142,
-  "lr_cv_mae_mean": 157756.33591648698,
-  "lr_cv_r2_mean": 0.2640195737287091,
-  "rf_cv_mae_mean": 179027.7237820767,
-  "rf_cv_r2_mean": 0.16997449520885888,
+  "cv_mae_mean": 147094.59849254548,
+  "cv_mae_std": 0.42424033277409284,
+  "cv_rmse_mean": 244285.56540756987,
+  "cv_r2_mean": 0.22298823650904054,
+  "cv_r2_std": 0.10428091249066598,
+  "svr_mmre": 6.790736058704709,
+  "svr_pred25": 0.29577464788732394,
+  "lr_cv_mae_mean": 259531.9499379906,
+  "lr_cv_rmse_mean": 855561.8939782956,
+  "lr_cv_r2_mean": -8.53092054033417,
+  "lr_mmre": 5.450354033310497,
+  "lr_pred25": 0.19718309859154928,
+  "rf_cv_mae_mean": 174214.38667198332,
+  "rf_cv_rmse_mean": 267009.54000778,
+  "rf_cv_r2_mean": 0.07170600818466955,
   "rf_best_params": {
-    "max_depth": 10,
-    "min_samples_split": 5,
-    "n_estimators": 200
+    "n_estimators": 100,
+    "min_samples_split": 10,
+    "max_depth": 20
   },
-  "xgb_cv_mae_mean": 202087.296875,
-  "xgb_cv_r2_mean": -0.08380759954452514,
+  "rf_mmre": 7.787050973681054,
+  "rf_pred25": 0.18309859154929578,
+  "xgb_cv_mae_mean": 185392.6082619561,
+  "xgb_cv_rmse_mean": 279069.1683964876,
+  "xgb_cv_r2_mean": -0.014041429563390384,
   "xgb_best_params": {
     "learning_rate": 0.05,
     "max_depth": 3,
     "n_estimators": 100
   },
-  "lstm_cv_mae_mean": 266667.09375,
-  "lstm_cv_r2_mean": -1.0362736533663568,
+  "xgb_mmre": 10.841074171469756,
+  "xgb_pred25": 0.2535211267605634,
+  "lstm_cv_mae_mean": 174347.66531600797,
+  "lstm_cv_rmse_mean": 268710.23624646955,
+  "lstm_cv_r2_mean": 0.0598429567767399,
   "lstm_best_params": {
-    "hidden_size": 128,
+    "hidden_size": 64,
+    "num_layers": 2,
     "lr": 0.001
   },
+  "lstm_mmre": 5.936439328993334,
+  "lstm_pred25": 0.14084507042253522,
   "hybrid_weights": {
-    "lstm": 0.249380468260514,
-    "xgb": 0.32907345358862194,
-    "lr": 0.4215460781508641
+    "lstm": 0.38281888769690103,
+    "xgb": 0.3600120842710103,
+    "lr": 0.2571690280320887
   },
-  "trained_on_rows": 72
+  "trained_on_rows": 72,
+  "effort_unit": "person-hours",
+  "log_transform_target": true
 }

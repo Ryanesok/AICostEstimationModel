@@ -231,3 +231,48 @@ datasets:
       Time: 'Total waktu pengembangan dalam jam. Contoh: 1800'
     effort_unit: person-hours
     secondary_target: Duration
+  subbiah:
+    features:
+    - TotalUFP
+    - ExternalInterface
+    - ExternalInputs
+    - ExternalOutputs
+    - ExternalQueries
+    - InternalLogicalFiles
+    - Adjustment
+    target: Actual_des
+    labels:
+      TotalUFP: Total Unadjusted Function Points (UFP)
+      ExternalInterface: External Interface Files (EIF)
+      ExternalInputs: External Inputs (EI)
+      ExternalOutputs: External Outputs (EO)
+      ExternalQueries: External Enquiries (EQ)
+      InternalLogicalFiles: Internal Logical Files (ILF)
+      Adjustment: Adjustment Factor (AF)
+    hints:
+      TotalUFP: 'Total Unadjusted Function Points sebelum adjustment. Contoh: 200'
+      ExternalInterface: 'External Interface Files yang dikelola oleh sistem eksternal.
+        Contoh: 5'
+      ExternalInputs: 'External Inputs untuk proses transformasi data. Contoh: 20'
+      ExternalOutputs: 'External Outputs hasil transformasi. Contoh: 15'
+      ExternalQueries: 'External Enquiries (input-output tanpa transformasi). Contoh:
+        10'
+      InternalLogicalFiles: 'Internal Logical Files yang dikelola sistem. Contoh:
+        8'
+      Adjustment: 'Adjustment Factor untuk menghitung AFP dari UFP. Contoh: 1.1'
+    effort_unit: person-hours
+    notes: Subbiah Dataset - 72 proyek dengan Function Points metrics
+  isbsg10:
+    features:
+    - FS
+    - N_PDR
+    - Resource_Level
+    target: N_effort
+  kemerer:
+    features:
+    - Hardware
+    - KSLOC
+    - AdjFP
+    - RAWFP
+    - EffortMM
+    target: Duration

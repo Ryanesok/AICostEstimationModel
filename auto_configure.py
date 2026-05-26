@@ -289,7 +289,15 @@ def configure_one(csv_path: str, existing: dict) -> tuple[str, dict] | None:
 
     labels, hints = collect_labels_hints(features, stem=stem)
 
-    entry: dict = {"features": features, "target": target}
+    # Auto-detect skewness of target; set log_transform_target flag
+    try:
+        target_skew = float(df[target].dropna().skew())
+        log_transform = abs(target_skew) > 1.0
+        print(f"  [SKEWNESS] target '{target}': skewness={target_skew:.3f} → log_transform_target={log_transform}")
+    except Exception:
+        log_transform = False
+
+    entry: dict = {"features": features, "target": target, "log_transform_target": log_transform, "clip_outliers": False}
     if labels:
         entry["labels"] = labels
     if hints:

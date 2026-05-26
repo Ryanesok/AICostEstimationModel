@@ -6,6 +6,8 @@ datasets:
     - Transactions
     - Entities
     target: Effort
+    log_transform_target: true
+    clip_outliers: false
     secondary_target: Length
     labels:
       TeamExp: Team Experience (tahun)
@@ -33,6 +35,8 @@ datasets:
     - Deleted
     - Resource
     target: Effort
+    log_transform_target: true
+    clip_outliers: false
     secondary_target: Duration
     labels:
       AFP: Adjusted Function Points (AFP)
@@ -62,6 +66,8 @@ datasets:
     - Adjusted.function.points
     - First.estimate
     target: Actual.effort
+    log_transform_target: true
+    clip_outliers: false
     post_project_cols:
     - Actual.duration
     labels:
@@ -90,6 +96,8 @@ datasets:
     - sced
     - equivphyskloc
     target: act_effort
+    log_transform_target: true
+    clip_outliers: false
     column_map:
       rely: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}
       data: {vl: 1, l: 2, n: 3, h: 4, vh: 5, xh: 6}

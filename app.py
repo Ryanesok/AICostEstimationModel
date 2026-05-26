@@ -1,7 +1,15 @@
+import csv
+import datetime
+import json
 import math
 import os
+from tkinter import filedialog
 
 import customtkinter as ctk
+import matplotlib
+matplotlib.use("TkAgg")
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import numpy as np
 import yaml
 
@@ -20,6 +28,16 @@ ctk.set_default_color_theme("blue")
 MODELS_DIR = "models"
 CONFIG_FILE = "dataset_config.yaml"
 HOURS_PER_MONTH = 160
+
+_COMPARISON_MODELS = ["SVR", "Linear Regression", "Random Forest", "XGBoost", "LSTM", "Hybrid"]
+_METRIC_KEYS: dict[str, dict[str, str | None]] = {
+    "SVR":              {"mae": "cv_mae_mean",      "rmse": "cv_rmse_mean",      "r2": "cv_r2_mean"},
+    "Linear Regression":{"mae": "lr_cv_mae_mean",   "rmse": "lr_cv_rmse_mean",   "r2": "lr_cv_r2_mean"},
+    "Random Forest":    {"mae": "rf_cv_mae_mean",    "rmse": "rf_cv_rmse_mean",   "r2": "rf_cv_r2_mean"},
+    "XGBoost":          {"mae": "xgb_cv_mae_mean",   "rmse": "xgb_cv_rmse_mean",  "r2": "xgb_cv_r2_mean"},
+    "LSTM":             {"mae": "lstm_cv_mae_mean",  "rmse": "lstm_cv_rmse_mean", "r2": "lstm_cv_r2_mean"},
+    "Hybrid":           {"mae": None,               "rmse": None,                "r2": None},
+}
 
 
 # ── Config helpers ────────────────────────────────────────────────────────────
@@ -62,6 +80,27 @@ def _quality_info(mmre: float | None) -> tuple[str, str]:
     return "Perlu Verifikasi Manual", "#e06c75"
 
 
+# ── Input persistence ─────────────────────────────────────────────────────────
+
+LAST_INPUTS_DIR = "last_inputs"
+
+
+def save_last_inputs(dataset_name: str, field_values: dict) -> None:
+    os.makedirs(LAST_INPUTS_DIR, exist_ok=True)
+    path = os.path.join(LAST_INPUTS_DIR, f"{dataset_name}.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(field_values, f)
+
+
+def load_last_inputs(dataset_name: str) -> dict:
+    path = os.path.join(LAST_INPUTS_DIR, f"{dataset_name}.json")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+
+
 # ── App ───────────────────────────────────────────────────────────────────────
 
 class App(ctk.CTk):
@@ -78,6 +117,9 @@ class App(ctk.CTk):
         self._field_resetters: dict[str, callable] = {}
         self._entries: dict[str, ctk.CTkEntry] = {}
         self._detail_visible: bool = False
+        self._last_result: dict | None = None
+        self._model_check_vars: dict[str, ctk.BooleanVar] = {}
+        self._metrics_cache: dict = {}
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self._build_ui()
@@ -152,6 +194,7 @@ class App(ctk.CTk):
         n = self._models.scaler.n_features_in_ if self._models and self._models.scaler else 5
         fields = load_field_config_from_yaml(stem) or _default_fields(n)
         slider_cfg = load_slider_config_from_yaml(stem)
+        saved_inputs = load_last_inputs(stem)
 
         for idx, (label_text, key, hint) in enumerate(fields):
             r = idx * 2
@@ -165,6 +208,8 @@ class App(ctk.CTk):
             else:
                 entry = ctk.CTkEntry(self._form_frame, width=160, placeholder_text="0.0")
                 entry.grid(row=r, column=1, padx=(0, 20), pady=(8, 0), sticky="ew")
+                if key in saved_inputs:
+                    entry.insert(0, str(saved_inputs[key]))
                 self._entries[key] = entry
                 self._field_readers[key] = lambda e=entry: float(e.get().strip())
                 self._field_resetters[key] = lambda e=entry: e.delete(0, "end")
@@ -272,6 +317,12 @@ class App(ctk.CTk):
             fg_color="gray30", hover_color="gray40",
             command=self._on_reset,
         ).pack(side="left", padx=6)
+        self._export_btn = ctk.CTkButton(
+            btn_frame, text="Export", width=120,
+            fg_color="gray30", hover_color="gray40",
+            command=self._on_export, state="disabled",
+        )
+        self._export_btn.pack(side="left", padx=6)
 
         # ── Result card ──
         result_card = ctk.CTkFrame(parent, fg_color="gray17", corner_radius=8)
@@ -358,9 +409,131 @@ class App(ctk.CTk):
 
         # ── Detail Teknis (collapsible) ──
         detail_section = ctk.CTkFrame(parent, fg_color="transparent")
-        detail_section.grid(row=6, column=0, padx=20, pady=(0, 20), sticky="ew")
+        detail_section.grid(row=6, column=0, padx=20, pady=(0, 8), sticky="ew")
         detail_section.grid_columnconfigure(0, weight=1)
         self._build_detail_section(detail_section)
+
+        # ── Model comparison (shown after first estimation) ──
+        self._comparison_section = ctk.CTkFrame(parent, fg_color="transparent")
+        self._comparison_section.grid(row=7, column=0, padx=20, pady=(0, 20), sticky="ew")
+        self._comparison_section.grid_columnconfigure(0, weight=1)
+        self._build_comparison_section(self._comparison_section)
+        self._comparison_section.grid_remove()
+
+    def _build_comparison_section(self, parent: ctk.CTkFrame) -> None:
+        ctk.CTkLabel(
+            parent, text="Perbandingan Model",
+            font=ctk.CTkFont(size=13, weight="bold"),
+        ).grid(row=0, column=0, pady=(12, 6), sticky="w")
+
+        # Checkbox row
+        cb_frame = ctk.CTkFrame(parent, fg_color="transparent")
+        cb_frame.grid(row=1, column=0, pady=(0, 8), sticky="ew")
+        self._model_check_vars.clear()
+        for i, name in enumerate(_COMPARISON_MODELS):
+            var = ctk.BooleanVar(value=False)
+            self._model_check_vars[name] = var
+            cb = ctk.CTkCheckBox(
+                cb_frame, text=name, variable=var, font=ctk.CTkFont(size=11),
+                command=self._on_comparison_change,
+            )
+            cb.grid(row=0, column=i, padx=(0, 12), sticky="w")
+
+        # Table frame (rebuilt on each refresh)
+        self._comparison_table_frame = ctk.CTkFrame(parent, fg_color="gray17", corner_radius=8)
+        self._comparison_table_frame.grid(row=2, column=0, pady=(0, 8), sticky="ew")
+
+        # Chart frame (rebuilt on each refresh)
+        self._comparison_chart_frame = ctk.CTkFrame(parent, fg_color="gray17", corner_radius=8)
+        self._comparison_chart_frame.grid(row=3, column=0, pady=(0, 0), sticky="ew")
+        self._comparison_chart_canvas: FigureCanvasTkAgg | None = None
+
+    def _on_comparison_change(self) -> None:
+        selected = [n for n, v in self._model_check_vars.items() if v.get()]
+        # Prevent deselecting the last model
+        if not selected:
+            for name, var in self._model_check_vars.items():
+                if self._last_result and name in self._last_result.get("predictions", {}):
+                    var.set(True)
+                    selected = [name]
+                    break
+        if self._last_result:
+            self._refresh_comparison(selected)
+
+    def _refresh_comparison(self, selected: list[str]) -> None:
+        predictions = self._last_result["predictions"] if self._last_result else {}
+        self._render_comparison_table(self._comparison_table_frame, selected, predictions)
+        self._render_comparison_chart(self._comparison_chart_frame, selected, predictions)
+
+    def _render_comparison_table(
+        self, parent: ctk.CTkFrame, selected: list[str], predictions: dict
+    ) -> None:
+        for w in parent.winfo_children():
+            w.destroy()
+
+        metrics = self._metrics_cache
+        col_models = [m for m in selected if m in predictions]
+        if not col_models:
+            return
+
+        header_font = ctk.CTkFont(size=11, weight="bold")
+        cell_font = ctk.CTkFont(size=11)
+        gray = "gray55"
+
+        # Header row
+        ctk.CTkLabel(parent, text="", font=header_font).grid(row=0, column=0, padx=(12, 8), pady=(10, 4), sticky="w")
+        for c, name in enumerate(col_models):
+            ctk.CTkLabel(parent, text=name[:12], font=header_font).grid(
+                row=0, column=c + 1, padx=8, pady=(10, 4)
+            )
+
+        row_defs = [
+            ("Prediksi (pm)", lambda m: f"{predictions[m]:.2f}" if m in predictions else "—"),
+            ("MAE",  lambda m: f"{metrics.get(_METRIC_KEYS[m]['mae']):.1f}" if m in _METRIC_KEYS and _METRIC_KEYS[m]['mae'] and _METRIC_KEYS[m]['mae'] in metrics else "—"),
+            ("RMSE", lambda m: f"{metrics.get(_METRIC_KEYS[m]['rmse']):.1f}" if m in _METRIC_KEYS and _METRIC_KEYS[m]['rmse'] and _METRIC_KEYS[m]['rmse'] in metrics else "—"),
+            ("R²",   lambda m: f"{metrics.get(_METRIC_KEYS[m]['r2']):.3f}" if m in _METRIC_KEYS and _METRIC_KEYS[m]['r2'] and _METRIC_KEYS[m]['r2'] in metrics else "—"),
+        ]
+        for r, (label, getter) in enumerate(row_defs):
+            ctk.CTkLabel(parent, text=label, font=cell_font, text_color=gray, anchor="w").grid(
+                row=r + 1, column=0, padx=(12, 8), pady=3, sticky="w"
+            )
+            for c, model in enumerate(col_models):
+                ctk.CTkLabel(parent, text=getter(model), font=cell_font, anchor="e").grid(
+                    row=r + 1, column=c + 1, padx=8, pady=3, sticky="e"
+                )
+        ctk.CTkLabel(parent, text="").grid(row=len(row_defs) + 1, column=0, pady=(0, 6))
+
+    def _render_comparison_chart(
+        self, parent: ctk.CTkFrame, selected: list[str], predictions: dict
+    ) -> None:
+        for w in parent.winfo_children():
+            w.destroy()
+        if self._comparison_chart_canvas:
+            plt.close("all")
+            self._comparison_chart_canvas = None
+
+        col_models = [m for m in selected if m in predictions]
+        if not col_models:
+            return
+
+        vals = [predictions[m] for m in col_models]
+        labels = [m[:10] for m in col_models]
+
+        fig, ax = plt.subplots(figsize=(5.5, 2.4))
+        fig.patch.set_facecolor("#2b2b2b")
+        ax.set_facecolor("#2b2b2b")
+        bars = ax.bar(labels, vals, color="#61afef", width=0.5)
+        ax.bar_label(bars, fmt="%.1f", padding=3, fontsize=8, color="white")
+        ax.set_ylabel("person-months", fontsize=8, color="#888")
+        ax.tick_params(colors="#888", labelsize=8)
+        for spine in ax.spines.values():
+            spine.set_edgecolor("#444")
+        fig.tight_layout(pad=0.6)
+
+        canvas = FigureCanvasTkAgg(fig, master=parent)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill="both", expand=True, padx=8, pady=8)
+        self._comparison_chart_canvas = canvas
 
     def _build_calculator(self, parent: ctk.CTkFrame) -> None:
         ctk.CTkLabel(
@@ -506,6 +679,35 @@ class App(ctk.CTk):
         self._current_estimate = pred
         self._result_label.configure(text=f"{pred:.2f}")
 
+        # Collect all individual model predictions for export
+        all_preds: dict[str, float] = {}
+        for model_name in ["SVR", "Linear Regression", "Random Forest", "XGBoost", "LSTM"]:
+            p = run_estimate(model_name, X_scaled, self._models, self._best.effort_unit)
+            if p is not None:
+                all_preds[model_name] = round(p, 4)
+        hybrid_p = run_hybrid_estimate(X_scaled, self._models, self._best.effort_unit)
+        if hybrid_p is not None:
+            all_preds["Hybrid"] = round(hybrid_p, 4)
+        self._last_result = {
+            "inputs": {key: reader() for key, reader in self._field_readers.items()},
+            "predictions": all_preds,
+        }
+        self._export_btn.configure(state="normal")
+        save_last_inputs(self._best.stem, self._last_result["inputs"])
+
+        # Load metrics for comparison table
+        metrics_path = os.path.join(MODELS_DIR, f"{self._best.stem}_metrics.json")
+        if os.path.exists(metrics_path):
+            with open(metrics_path, "r", encoding="utf-8") as _f:
+                self._metrics_cache = json.load(_f)
+
+        # Show comparison section with all available models checked
+        for name, var in self._model_check_vars.items():
+            var.set(name in all_preds)
+        selected = [n for n, v in self._model_check_vars.items() if v.get()]
+        self._refresh_comparison(selected)
+        self._comparison_section.grid()
+
         unit_hint = ""
         if self._best.effort_unit == "person-hours":
             unit_hint = f"  (dari person-hours ÷ {HOURS_PER_MONTH})"
@@ -521,6 +723,12 @@ class App(ctk.CTk):
         for resetter in self._field_resetters.values():
             resetter()
         self._current_estimate = None
+        self._last_result = None
+        self._metrics_cache = {}
+        if hasattr(self, "_export_btn"):
+            self._export_btn.configure(state="disabled")
+        if hasattr(self, "_comparison_section"):
+            self._comparison_section.grid_remove()
         if hasattr(self, "_error_label"):
             self._error_label.configure(text="")
         if hasattr(self, "_result_label"):
@@ -537,6 +745,45 @@ class App(ctk.CTk):
             self._biaya_label.configure(text="—")
         if hasattr(self, "_tim_label"):
             self._tim_label.configure(text="—")
+
+    def _on_export(self) -> None:
+        if self._last_result is None:
+            return
+        path = filedialog.asksaveasfilename(
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv"), ("JSON files", "*.json"), ("All files", "*.*")],
+            title="Simpan Hasil Estimasi",
+        )
+        if not path:
+            return
+        try:
+            if path.lower().endswith(".json"):
+                self._export_json(path, self._last_result["inputs"], self._last_result["predictions"])
+            else:
+                self._export_csv(path, self._last_result["inputs"], self._last_result["predictions"])
+        except OSError as exc:
+            self._error_label.configure(text=f"Gagal menyimpan file: {exc}")
+
+    def _export_csv(self, path: str, inputs: dict, predictions: dict) -> None:
+        timestamp = datetime.datetime.now().isoformat()
+        row = {
+            **{k: v for k, v in inputs.items()},
+            **{f"pred_{name.replace(' ', '_').lower()}": v for name, v in predictions.items()},
+            "timestamp": timestamp,
+        }
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=list(row.keys()))
+            writer.writeheader()
+            writer.writerow(row)
+
+    def _export_json(self, path: str, inputs: dict, predictions: dict) -> None:
+        data = {
+            "inputs": inputs,
+            "predictions": predictions,
+            "timestamp": datetime.datetime.now().isoformat(),
+        }
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
 
     def _update_calculator(self) -> None:
         if self._current_estimate is None:

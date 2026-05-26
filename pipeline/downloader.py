@@ -1,10 +1,14 @@
 import os
+from pathlib import Path
 from urllib.parse import urlparse
 
 import requests
 
-DATA_DIR = "data"
-DATASETS_FILE = "datasets.txt"
+_PIPELINE_DIR = Path(__file__).parent
+_ROOT_DIR = _PIPELINE_DIR.parent
+
+DATA_DIR = str(_ROOT_DIR / "data")
+DATASETS_FILE = str(_PIPELINE_DIR / "datasets.txt")
 REQUEST_TIMEOUT = 30
 
 

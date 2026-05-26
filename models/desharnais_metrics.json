@@ -24,15 +24,21 @@
     "min_samples_split": 10,
     "max_depth": 10
   },
-  "xgb_cv_mae_mean": 2319.6224609375,
-  "xgb_cv_r2_mean": 0.3773764491081238,
+  "rf_mmre": 0.6273790920566468,
+  "rf_pred25": 0.37037037037037035,
+  "xgb_cv_mae_mean": 2315.6313401210455,
+  "xgb_cv_rmse_mean": 3654.1248722798678,
+  "xgb_cv_r2_mean": 0.30759602585110357,
   "xgb_best_params": {
     "learning_rate": 0.05,
     "max_depth": 3,
     "n_estimators": 100
   },
-  "lstm_cv_mae_mean": 4958.8380859375,
-  "lstm_cv_r2_mean": -1.4543869553259943,
+  "xgb_mmre": 0.6508922962832877,
+  "xgb_pred25": 0.32098765432098764,
+  "lstm_cv_mae_mean": 2297.3632175178423,
+  "lstm_cv_rmse_mean": 3549.962404720242,
+  "lstm_cv_r2_mean": 0.34650797702461544,
   "lstm_best_params": {
     "hidden_size": 64,
     "num_layers": 1,
@@ -41,9 +47,9 @@
   "lstm_mmre": 0.6726464421207282,
   "lstm_pred25": 0.3950617283950617,
   "hybrid_weights": {
-    "lstm": 0.18982897106273233,
-    "xgb": 0.40581221615682916,
-    "lr": 0.4043588127804385
+    "lstm": 0.34178884210836064,
+    "xgb": 0.3390924541454494,
+    "lr": 0.31911870374618995
   },
   "trained_on_rows": 81,
   "effort_unit": "person-hours",

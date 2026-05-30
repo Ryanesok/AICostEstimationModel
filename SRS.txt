@@ -1,0 +1,20 @@
+About App:
+- Calculates Effort Estimates based on project parameter represent all software cost related dataset
+- Help software project manager automatically predict minimum cost of their project
+- Only focus on estimating Software cost
+- built based on Machine learning model.
+
+Me want this App:
+- Should calculate accurately (MAPE < 10%, Low MAE, R^2 closer to 1)
+- Should produce result consistently (slightly different input = slightly different output)
+- Should Adaptable to new dataset, keep up in tech changes, and industry trend
+- Should include the project parameter i mentioned in project_parameter.txt
+- Should explain the output (why get this result, what the proof, is it reliable)
+- Should explain the high price in result (e.g Project duration, requirement changes, Project Complexity)
+- Should show dominance (cause of high prices) in effort (e.g backend 40%, QA 20%)
+- Should show confidence level (e.g 87% with estimation range +- 10%)
+- Should have simple UX, detail in UX.txt
+- Should learning from past project by matching its pattern, comparing, and semantic similarity.
+- Should be decision support for PM, helping with cost overrun, reccommend an optimization on resources, and simulating scenario.
+- Could compete with another model of calculating cost, such as COCOMO app and future similar app.
+

@@ -806,5 +806,23 @@ class App(ctk.CTk):
 
 
 if __name__ == "__main__":
-    app = App()
-    app.mainloop()
+    import os
+    if os.environ.get("USE_NEW_UI", "1") == "1":
+        from core import estimator_bridge
+        from ui.wizard import WizardApp
+        from ui.result_window import ResultWindow
+
+        _wizard_ref = None
+
+        def _on_estimation_complete(pm_input, salary_per_month, initial_budget):
+            result = estimator_bridge.estimate(pm_input)
+            if result is None:
+                print("Estimation failed: no trained models found.")
+                return
+            ResultWindow(_wizard_ref, pm_input, result, salary_per_month, initial_budget)
+
+        _wizard_ref = WizardApp(on_complete=_on_estimation_complete)
+        _wizard_ref.mainloop()
+    else:
+        app = App()
+        app.mainloop()

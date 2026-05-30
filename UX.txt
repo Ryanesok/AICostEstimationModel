@@ -1,0 +1,36 @@
+UX for this app:
+
+a. Input sederhana
+
+Gunakan:
+
+dropdown
+slider
+checklist
+wizard step-by-step
+
+Bukan form teknis panjang.
+
+b. Cepat digunakan
+
+PM idealnya bisa:
+
+membuat estimasi
+dalam 5–10 menit.
+
+c. Visualisasi jelas
+
+Gunakan:
+
+pie chart effort
+grafik distribusi biaya
+timeline estimation
+risk heatmap
+
+d. Simulasi mudah
+
+Contoh:
+
+“Bagaimana jika developer ditambah 2 orang?”
+
+Aplikasi langsung menghitung ulang.

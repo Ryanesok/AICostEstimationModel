@@ -1,0 +1,22 @@
+Teknis
+-jumlah fitur
+-kompleksitas fitur
+-jumlah API
+-platform
+-integrasi third-party
+-keamanan/security requirement
+
+Tim
+-jumlah developer
+-seniority
+-pengalaman stack
+
+Bisnis
+-deadline
+-budget constraint
+-perubahan requirement
+
+Risiko
+-tingkat uncertainty
+-technical debt
+-dependency eksternal

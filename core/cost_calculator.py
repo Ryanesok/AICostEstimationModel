@@ -9,6 +9,7 @@ from dataclasses import dataclass
 class CostResult:
     total_cost: float
     team_needed: int
+    actual_duration_months: float
     cost_per_developer: float
     currency: str
     formatted_total: str
@@ -44,6 +45,7 @@ def compute(
     """
     total_cost = effort_pm * salary_per_month
     team_needed = math.ceil(effort_pm / max(deadline_months, 0.1))
+    actual_duration = effort_pm / max(num_developers, 1)
     cost_per_dev = total_cost / max(num_developers, 1)
 
     formatter = _FORMATTERS.get(currency.upper(), _format_idr)
@@ -52,6 +54,7 @@ def compute(
     return CostResult(
         total_cost=total_cost,
         team_needed=team_needed,
+        actual_duration_months=actual_duration,
         cost_per_developer=cost_per_dev,
         currency=currency.upper(),
         formatted_total=formatted,

@@ -167,12 +167,20 @@ class ResultWindow(ctk.CTkToplevel):
             font=ctk.CTkFont(size=13, weight="bold"),
         ).pack(side="left", padx=20, pady=6)
 
+        team_info = ctk.CTkFrame(strip, fg_color="transparent")
+        team_info.pack(side="left", padx=12)
         ctk.CTkLabel(
-            strip,
-            text=f"Team Needed: {self._cost.team_needed} devs",
+            team_info,
+            text=f"Min. Team: {self._cost.team_needed} devs (kejar deadline)",
             font=ctk.CTkFont(size=11),
             text_color="#aaaaaa",
-        ).pack(side="left", padx=12)
+        ).pack(anchor="w")
+        ctk.CTkLabel(
+            team_info,
+            text=f"Durasi Aktual: {self._cost.actual_duration_months:.1f} bln (dengan {self._pm.num_developers} devs)",
+            font=ctk.CTkFont(size=11),
+            text_color="#aaaaaa",
+        ).pack(anchor="w")
 
         ctk.CTkLabel(
             strip,

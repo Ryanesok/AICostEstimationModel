@@ -10,6 +10,7 @@ import torch
 import torch.nn as nn
 
 HOURS_PER_MONTH = 160
+MIN_TRAINING_ROWS = 50
 
 _MODEL_MAE_KEYS: dict[str, str] = {
     "SVR": "cv_mae_mean",
@@ -93,7 +94,13 @@ def _to_person_months(value: float, unit: str) -> float:
 
 def select_best_estimator(metrics_dir: str) -> EstimatorResult | None:
     """Read all *_metrics.json files and return the best dataset/model pair by CV MAE
-    (normalized to person-months). MMRE is used as a tiebreaker within 1% MAE."""
+    (normalized to person-months). MMRE is used as a tiebreaker within 1% MAE.
+
+    Datasets with fewer than MIN_TRAINING_ROWS rows are excluded from selection to
+    prevent small datasets (e.g. isbsg10 with 37 rows) from winning via artificially
+    low MAE that doesn't generalise. If all datasets fall below the threshold the
+    filter is lifted so the app remains functional.
+    """
     files = glob.glob(os.path.join(metrics_dir, "*_metrics.json"))
     if not files:
         return None
@@ -130,9 +137,13 @@ def select_best_estimator(metrics_dir: str) -> EstimatorResult | None:
     if not candidates:
         return None
 
-    candidates.sort(key=lambda r: r.cv_mae_pm)
-    best = candidates[0]
-    for c in candidates[1:]:
+    # Prefer datasets with enough training rows; fall back to all if none qualify.
+    qualified = [c for c in candidates if c.trained_on_rows >= MIN_TRAINING_ROWS]
+    pool = qualified if qualified else candidates
+
+    pool.sort(key=lambda r: r.cv_mae_pm)
+    best = pool[0]
+    for c in pool[1:]:
         if best.cv_mae_pm <= 0:
             break
         gap = (c.cv_mae_pm - best.cv_mae_pm) / best.cv_mae_pm

@@ -2,6 +2,7 @@
   "best_svr_params": {
     "C": 10,
     "epsilon": 0.1,
+    "gamma": "scale",
     "kernel": "rbf"
   },
   "cv_mae_mean": 52.6891258127387,
@@ -36,6 +37,15 @@
   },
   "xgb_mmre": 0.37561310577560447,
   "xgb_pred25": 0.4791666666666667,
+  "knn_cv_mae_mean": 52.09446281501294,
+  "knn_cv_r2_mean": 0.14686920879071041,
+  "knn_best_params": {
+    "metric": "manhattan",
+    "n_neighbors": 3,
+    "weights": "uniform"
+  },
+  "knn_mmre": 0.4847920979006715,
+  "knn_pred25": 0.3541666666666667,
   "lstm_cv_mae_mean": 60.62302361036736,
   "lstm_cv_rmse_mean": 205.58218805582067,
   "lstm_cv_r2_mean": 0.1751876672800894,
@@ -47,10 +57,14 @@
   "lstm_mmre": 0.6864583423416343,
   "lstm_pred25": 0.3125,
   "hybrid_weights": {
-    "lstm": 0.43123138334060745,
-    "xgb": 0.4939396571837442,
-    "lr": 0.07482895947564823
+    "svr": 0.2447561011278153,
+    "rf": 0.26403600395533033,
+    "knn": 0.24755001412630753,
+    "xgb": 0.2436578807905468
   },
+  "hybrid_cv_mae_mean": 49.0271271551716,
+  "hybrid_mmre": 0.3816345397539054,
+  "hybrid_pred25": 0.5,
   "trained_on_rows": 48,
   "effort_unit": "person-months",
   "log_transform_target": true

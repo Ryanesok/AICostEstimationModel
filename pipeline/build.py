@@ -32,6 +32,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import make_scorer, mean_absolute_error, r2_score
 from sklearn.model_selection import GridSearchCV, KFold, RandomizedSearchCV, cross_val_predict, cross_validate
+from sklearn.neighbors import KNeighborsRegressor
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
 from torch.utils.data import DataLoader, TensorDataset
@@ -68,11 +69,10 @@ SECONDARY_TARGET_COLS = {
 
 # ── model_pipeline grid params ─────────────────────────────────────────────────
 
-GRID_PARAMS = {
-    "C": [0.1, 1, 10, 100],
-    "epsilon": [0.01, 0.1, 1.0],
-    "kernel": ["rbf", "linear"],
-}
+GRID_PARAMS = [
+    {"C": [0.1, 1, 10, 100, 1000], "epsilon": [0.01, 0.1, 1.0], "kernel": ["rbf"], "gamma": ["scale", "auto"]},
+    {"C": [0.1, 1, 10, 100, 1000], "epsilon": [0.01, 0.1, 1.0], "kernel": ["linear"]},
+]
 
 XGB_GRID_PARAMS = {
     "n_estimators": [100, 300],
@@ -85,6 +85,14 @@ RF_GRID_PARAMS = {
     "max_depth": [None, 10, 20, 30],
     "min_samples_split": [2, 5, 10],
 }
+
+KNN_GRID_PARAMS = {
+    "n_neighbors": [2, 3, 5, 7, 10, 15],
+    "weights": ["uniform", "distance"],
+    "metric": ["euclidean", "manhattan"],
+}
+
+HYBRID_MAE_THRESHOLD = 0.30  # exclude models >30% worse than best from hybrid
 
 LSTM_GRID_PARAMS = {
     "hidden_size": [32, 64, 128],
@@ -581,7 +589,8 @@ def train_lstm(
 def _lstm_cv_scores_with_params(
     X: np.ndarray, y: np.ndarray, kfold: KFold, hidden_size: int, num_layers: int, lr: float,
     log_transform: bool = False,
-) -> tuple[float, float, float, float, float]:
+    return_oof: bool = False,
+) -> tuple:
     all_y_true: list[float] = []
     all_y_pred: list[float] = []
     for train_idx, val_idx in kfold.split(X):
@@ -599,6 +608,8 @@ def _lstm_cv_scores_with_params(
     mae = float(np.mean(np.abs(arr_true - arr_pred)))
     rmse = float(np.sqrt(np.mean((arr_true - arr_pred) ** 2)))
     r2 = float(r2_score(arr_true, arr_pred)) if len(arr_true) > 1 else 0.0
+    if return_oof:
+        return mae, r2, mmre, pred25, rmse, arr_pred
     return mae, r2, mmre, pred25, rmse
 
 
@@ -690,6 +701,7 @@ def _eval_svr(X: np.ndarray, y: np.ndarray, kfold: KFold, log_transform: bool) -
         "cv_r2_std": float(svr_cv["test_r2"].std()),
         "svr_mmre": svr_mmre,
         "svr_pred25": svr_pred25,
+        "svr_oof": svr_oof,
     }
 
 
@@ -707,6 +719,7 @@ def _eval_lr(X: np.ndarray, y: np.ndarray, kfold: KFold, log_transform: bool) ->
         "lr_cv_r2_mean": lr_r2,
         "lr_mmre": lr_mmre,
         "lr_pred25": lr_pred25,
+        "lr_oof": lr_oof,
     }
 
 
@@ -727,6 +740,7 @@ def _eval_rf(X: np.ndarray, y: np.ndarray, kfold: KFold, log_transform: bool) ->
         "rf_best_params": rf_best_params,
         "rf_mmre": rf_mmre,
         "rf_pred25": rf_pred25,
+        "rf_oof": rf_oof,
     }
 
 
@@ -747,6 +761,29 @@ def _eval_xgb(X: np.ndarray, y: np.ndarray, kfold: KFold, log_transform: bool) -
         "xgb_best_params": xgb_best_params,
         "xgb_mmre": xgb_mmre,
         "xgb_pred25": xgb_pred25,
+        "xgb_oof": xgb_oof,
+    }
+
+
+def _eval_knn(X: np.ndarray, y: np.ndarray, kfold: KFold, log_transform: bool) -> dict:
+    y_orig = _inverse_transform(y, log_transform)
+    # Cap n_neighbors to training fold size to avoid GridSearchCV warnings on tiny datasets
+    min_train = len(X) * (kfold.n_splits - 1) // kfold.n_splits
+    valid_k = [k for k in KNN_GRID_PARAMS["n_neighbors"] if k < min_train] or [min(KNN_GRID_PARAMS["n_neighbors"])]
+    knn_params = {**KNN_GRID_PARAMS, "n_neighbors": valid_k}
+    gs = GridSearchCV(KNeighborsRegressor(), knn_params, cv=kfold, scoring="neg_mean_absolute_error", n_jobs=-1)
+    gs.fit(X, y)
+    knn_oof = _safe_oof(cross_val_predict(gs.best_estimator_, X, y, cv=kfold), y, log_transform)
+    knn_mmre, knn_pred25 = _mmre_pred25(y_orig, knn_oof)
+    knn_mae = float(mean_absolute_error(y_orig, knn_oof))
+    knn_r2 = float(r2_score(y_orig, knn_oof))
+    return {
+        "knn_cv_mae_mean": knn_mae,
+        "knn_cv_r2_mean": knn_r2,
+        "knn_best_params": gs.best_params_,
+        "knn_mmre": knn_mmre,
+        "knn_pred25": knn_pred25,
+        "knn_oof": knn_oof,
     }
 
 
@@ -791,14 +828,16 @@ def evaluate_models(
                         lr_r = fut.result()
                         pbar.set_postfix({"done": "LR"})
                     pbar.update(1)
-        # RF and XGB run sequentially — each uses all cores via n_jobs=-1
-        rf_r = _eval_rf(X, y, kfold, log_transform)
-        xgb_r = _eval_xgb(X, y, kfold, log_transform)
-    else:
-        svr_r = _eval_svr(X, y, kfold, log_transform)
-        lr_r  = _eval_lr(X, y, kfold, log_transform)
+        # RF, XGB, KNN run sequentially — RF/XGB use all cores via n_jobs=-1
         rf_r  = _eval_rf(X, y, kfold, log_transform)
         xgb_r = _eval_xgb(X, y, kfold, log_transform)
+        knn_r = _eval_knn(X, y, kfold, log_transform)
+    else:
+        svr_r  = _eval_svr(X, y, kfold, log_transform)
+        lr_r   = _eval_lr(X, y, kfold, log_transform)
+        rf_r   = _eval_rf(X, y, kfold, log_transform)
+        xgb_r  = _eval_xgb(X, y, kfold, log_transform)
+        knn_r  = _eval_knn(X, y, kfold, log_transform)
 
     _, lstm_best_params, lstm_cv_mae, lstm_cv_r2, lstm_mmre, lstm_pred25, lstm_rmse = (
         train_lstm_with_tuning(
@@ -809,25 +848,55 @@ def evaluate_models(
         )
     )
 
-    lstm_mae = float(lstm_cv_mae)
-    xgb_mae  = xgb_r["xgb_cv_mae_mean"]
-    lr_mae   = lr_r["lr_cv_mae_mean"]
+    # Collect LSTM OOF predictions using best params (one extra CV pass)
+    *_, lstm_oof = _lstm_cv_scores_with_params(
+        X, y, kfold,
+        hidden_size=lstm_best_params["hidden_size"],
+        num_layers=lstm_best_params["num_layers"],
+        lr=lstm_best_params["lr"],
+        log_transform=log_transform,
+        return_oof=True,
+    )
 
-    w_lstm = 1.0 / max(lstm_mae, 1e-6)
-    w_xgb  = 1.0 / max(xgb_mae, 1e-6)
-    w_lr   = 1.0 / max(lr_mae, 1e-6)
-    total_w = w_lstm + w_xgb + w_lr
-    hybrid_weights = {
-        "lstm": w_lstm / total_w,
-        "xgb":  w_xgb  / total_w,
-        "lr":   w_lr   / total_w,
+    # Hybrid pool: SVR, RF, KNN, XGB — thresholding excludes models >30% worse than best
+    _candidate_maes = {
+        "svr": svr_r["cv_mae_mean"],
+        "rf":  rf_r["rf_cv_mae_mean"],
+        "knn": knn_r["knn_cv_mae_mean"],
+        "xgb": xgb_r["xgb_cv_mae_mean"],
     }
+    _candidate_oofs = {
+        "svr": svr_r["svr_oof"],
+        "rf":  rf_r["rf_oof"],
+        "knn": knn_r["knn_oof"],
+        "xgb": xgb_r["xgb_oof"],
+    }
+    _best_mae = min(_candidate_maes.values())
+    _active = {k: mae for k, mae in _candidate_maes.items()
+               if mae <= _best_mae * (1.0 + HYBRID_MAE_THRESHOLD)}
+    if not _active:
+        _best_k = min(_candidate_maes, key=_candidate_maes.get)
+        _active = {_best_k: _candidate_maes[_best_k]}
+    _raw_w = {k: 1.0 / max(mae, 1e-6) for k, mae in _active.items()}
+    _total_w = sum(_raw_w.values())
+    _norm_w = {k: w / _total_w for k, w in _raw_w.items()}
+    hybrid_weights = {k: _norm_w.get(k, 0.0) for k in _candidate_maes}
+
+    hybrid_oof = sum(_norm_w[k] * _candidate_oofs[k] for k in _active)
+    y_orig = _inverse_transform(y, log_transform)
+    hybrid_mae = float(mean_absolute_error(y_orig, hybrid_oof))
+    hybrid_mmre, hybrid_pred25 = _mmre_pred25(y_orig, hybrid_oof)
+
+    lstm_mae = float(lstm_cv_mae)
+    lr_mae   = lr_r["lr_cv_mae_mean"]
+    xgb_mae  = xgb_r["xgb_cv_mae_mean"]
 
     return {
-        **svr_r,
-        **lr_r,
-        **rf_r,
-        **xgb_r,
+        **{k: v for k, v in svr_r.items() if k != "svr_oof"},
+        **{k: v for k, v in lr_r.items() if k != "lr_oof"},
+        **{k: v for k, v in rf_r.items() if k != "rf_oof"},
+        **{k: v for k, v in xgb_r.items() if k != "xgb_oof"},
+        **{k: v for k, v in knn_r.items() if k != "knn_oof"},
         "lstm_cv_mae_mean": lstm_mae,
         "lstm_cv_rmse_mean": lstm_rmse,
         "lstm_cv_r2_mean": lstm_cv_r2,
@@ -835,6 +904,9 @@ def evaluate_models(
         "lstm_mmre": lstm_mmre,
         "lstm_pred25": lstm_pred25,
         "hybrid_weights": hybrid_weights,
+        "hybrid_cv_mae_mean": hybrid_mae,
+        "hybrid_mmre": hybrid_mmre,
+        "hybrid_pred25": hybrid_pred25,
     }
 
 
@@ -908,9 +980,12 @@ def train_and_export(
     print(f"  [{stem}] LR   CV-MAE={metrics['lr_cv_mae_mean']:.2f}  CV-R²={metrics['lr_cv_r2_mean']:.4f}")
     print(f"  [{stem}] RF   CV-MAE={metrics['rf_cv_mae_mean']:.2f}  CV-R²={metrics['rf_cv_r2_mean']:.4f}  params={metrics['rf_best_params']}")
     print(f"  [{stem}] XGB  CV-MAE={metrics['xgb_cv_mae_mean']:.2f}  CV-R²={metrics['xgb_cv_r2_mean']:.4f}  params={metrics['xgb_best_params']}")
+    print(f"  [{stem}] KNN  CV-MAE={metrics['knn_cv_mae_mean']:.2f}  CV-R²={metrics['knn_cv_r2_mean']:.4f}  params={metrics['knn_best_params']}")
     print(f"  [{stem}] LSTM CV-MAE={metrics['lstm_cv_mae_mean']:.2f}  CV-R²={metrics['lstm_cv_r2_mean']:.4f}  params={metrics['lstm_best_params']}")
     hw = metrics["hybrid_weights"]
-    print(f"  [{stem}] Hybrid weights — lstm={hw['lstm']:.3f}  xgb={hw['xgb']:.3f}  lr={hw['lr']:.3f}")
+    active_hw = {k: v for k, v in hw.items() if v > 0}
+    hw_str = " ".join(f"{k}={v:.3f}" for k, v in active_hw.items())
+    print(f"  [{stem}] Hybrid CV-MAE={metrics['hybrid_cv_mae_mean']:.2f}  PRED25={metrics['hybrid_pred25']:.4f}  active=[{', '.join(active_hw)}] weights={hw_str}")
     print(f"  [{stem}] Best SVR params: {metrics['best_svr_params']}")
 
     final_svr = SVR(**metrics["best_svr_params"])
@@ -920,6 +995,8 @@ def train_and_export(
     final_rf = RandomForestRegressor(random_state=42, **metrics["rf_best_params"])
     final_rf.fit(X, y)
     final_xgb, _ = train_xgb(X, y, KFold(n_splits=5, shuffle=True, random_state=42))
+    final_knn = KNeighborsRegressor(**metrics["knn_best_params"])
+    final_knn.fit(X, y)
     print(f"  [{stem}] Training final LSTM on full data ...")
     torch.manual_seed(42)
     final_lstm = train_lstm(X, y, input_size, **metrics["lstm_best_params"])
@@ -932,13 +1009,14 @@ def train_and_export(
     joblib.dump(scaler,    os.path.join(MODELS_DIR, f"scaler_{stem}.pkl"))
     joblib.dump(final_rf,  os.path.join(MODELS_DIR, f"rf_{stem}.pkl"))
     joblib.dump(final_xgb, os.path.join(MODELS_DIR, f"xgb_{stem}.pkl"))
+    joblib.dump(final_knn, os.path.join(MODELS_DIR, f"knn_{stem}.pkl"))
     torch.save(final_lstm.state_dict(), os.path.join(MODELS_DIR, f"lstm_{stem}.pt"))
     with open(os.path.join(MODELS_DIR, f"lstm_arch_{stem}.json"), "w") as f:
         json.dump({"input_size": input_size, "hidden_size": lstm_hidden, "num_layers": lstm_num_layers}, f)
     save_metrics(stem, metrics)
 
     elapsed = time.perf_counter() - start_time
-    print(f"  [{stem}] Exported: svr | linreg | scaler | rf | xgb | lstm | lstm_arch | metrics")
+    print(f"  [{stem}] Exported: svr | linreg | scaler | rf | xgb | knn | lstm | lstm_arch | metrics")
     print(f"  [{stem}] Selesai dalam {elapsed:.2f} detik")
     return True
 
@@ -949,7 +1027,7 @@ def cleanup_stale_models(trained_stems: set) -> int:
     for svr_path in existing_svr:
         stem = os.path.basename(svr_path)[4:-4]
         if stem not in trained_stems:
-            for prefix in ("svr_", "linreg_", "scaler_", "rf_", "xgb_"):
+            for prefix in ("svr_", "linreg_", "scaler_", "rf_", "xgb_", "knn_"):
                 p = os.path.join(MODELS_DIR, f"{prefix}{stem}.pkl")
                 if os.path.exists(p):
                     os.remove(p)

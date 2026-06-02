@@ -2,6 +2,7 @@
   "best_svr_params": {
     "C": 1,
     "epsilon": 0.01,
+    "gamma": "scale",
     "kernel": "rbf"
   },
   "cv_mae_mean": 2562.987161039129,
@@ -36,6 +37,15 @@
   },
   "xgb_mmre": 1.1114521782725981,
   "xgb_pred25": 0.20641282565130262,
+  "knn_cv_mae_mean": 2550.9983180234226,
+  "knn_cv_r2_mean": 0.2560352249730212,
+  "knn_best_params": {
+    "metric": "manhattan",
+    "n_neighbors": 15,
+    "weights": "distance"
+  },
+  "knn_mmre": 0.9807599976362964,
+  "knn_pred25": 0.1903807615230461,
   "lstm_cv_mae_mean": 2443.517219235041,
   "lstm_cv_rmse_mean": 4768.420456645635,
   "lstm_cv_r2_mean": 0.45755514083382576,
@@ -47,10 +57,14 @@
   "lstm_mmre": 1.1360381045711343,
   "lstm_pred25": 0.1843687374749499,
   "hybrid_weights": {
-    "lstm": 0.4185527310852273,
-    "xgb": 0.4042329634131716,
-    "lr": 0.17721430550160105
+    "svr": 0.2474660131666743,
+    "rf": 0.25322008956486347,
+    "knn": 0.24862902106151163,
+    "xgb": 0.25068487620695057
   },
+  "hybrid_cv_mae_mean": 2476.2004391248392,
+  "hybrid_mmre": 1.086905783003777,
+  "hybrid_pred25": 0.20641282565130262,
   "trained_on_rows": 499,
   "effort_unit": "person-hours",
   "log_transform_target": true

@@ -18,28 +18,36 @@ _MODEL_MAE_KEYS: dict[str, str] = {
     "Linear Regression": "lr_cv_mae_mean",
     "Random Forest": "rf_cv_mae_mean",
     "XGBoost": "xgb_cv_mae_mean",
+    "KNN": "knn_cv_mae_mean",
     "LSTM": "lstm_cv_mae_mean",
+    "Hybrid": "hybrid_cv_mae_mean",
 }
 _MODEL_MMRE_KEYS: dict[str, str] = {
     "SVR": "svr_mmre",
     "Linear Regression": "lr_mmre",
     "Random Forest": "rf_mmre",
     "XGBoost": "xgb_mmre",
+    "KNN": "knn_mmre",
     "LSTM": "lstm_mmre",
+    "Hybrid": "hybrid_mmre",
 }
 _MODEL_PRED25_KEYS: dict[str, str] = {
     "SVR": "svr_pred25",
     "Linear Regression": "lr_pred25",
     "Random Forest": "rf_pred25",
     "XGBoost": "xgb_pred25",
+    "KNN": "knn_pred25",
     "LSTM": "lstm_pred25",
+    "Hybrid": "hybrid_pred25",
 }
 _MODEL_HYPERPARAMS_KEYS: dict[str, str | None] = {
     "SVR": "best_svr_params",
     "Linear Regression": None,
     "Random Forest": "rf_best_params",
     "XGBoost": "xgb_best_params",
+    "KNN": "knn_best_params",
     "LSTM": "lstm_best_params",
+    "Hybrid": None,
 }
 
 
@@ -78,6 +86,7 @@ class LoadedModels:
     scaler: object = None
     rf: object = None
     xgb: object = None
+    knn: object = None
     lstm: LSTMModel | None = None
     hybrid_weights: dict | None = field(default=None)
     log_transform_target: bool = False
@@ -104,8 +113,8 @@ def select_best_estimator(
     1. Remove datasets below MIN_TRAINING_ROWS to avoid overfitting on tiny data.
     2. Restrict to supported_stems when given (app-level filter for registered datasets).
     3. Apply confidence gate: keep only candidates with PRED(25) >= min_pred25.
-    4. Among remaining candidates, sort by CV MAE (person-months); use MMRE as a
-       tiebreaker within a 1% MAE band.
+    4. Among remaining candidates, sort by PRED(25) descending; use CV MAE as tiebreaker
+       when PRED(25) values are equal.
     """
     files = glob.glob(os.path.join(metrics_dir, "*_metrics.json"))
     if not files:
@@ -161,17 +170,9 @@ def select_best_estimator(
         if confident_pool:
             pool = confident_pool
 
-    pool.sort(key=lambda r: r.cv_mae_pm)
-    best = pool[0]
-    for c in pool[1:]:
-        if best.cv_mae_pm <= 0:
-            break
-        gap = (c.cv_mae_pm - best.cv_mae_pm) / best.cv_mae_pm
-        if gap < 0.01 and c.mmre is not None and (best.mmre is None or c.mmre < best.mmre):
-            best = c
-        elif gap >= 0.01:
-            break
-    return best
+    # Primary: highest PRED(25) first; secondary: lowest MAE (person-months).
+    pool.sort(key=lambda r: (-(r.pred25 or 0), r.cv_mae_pm))
+    return pool[0]
 
 
 def load_estimator_models(stem: str, models_dir: str) -> LoadedModels:
@@ -191,6 +192,10 @@ def load_estimator_models(stem: str, models_dir: str) -> LoadedModels:
     xgb_path = os.path.join(models_dir, f"xgb_{stem}.pkl")
     if os.path.exists(xgb_path):
         m.xgb = joblib.load(xgb_path)
+
+    knn_path = os.path.join(models_dir, f"knn_{stem}.pkl")
+    if os.path.exists(knn_path):
+        m.knn = joblib.load(knn_path)
 
     arch_path = os.path.join(models_dir, f"lstm_arch_{stem}.json")
     pt_path = os.path.join(models_dir, f"lstm_{stem}.pt")
@@ -240,6 +245,10 @@ def run_estimate(
             if models.xgb is None:
                 return None
             return _postprocess(float(models.xgb.predict(X_scaled)[0]))
+        if model_name == "KNN":
+            if models.knn is None:
+                return None
+            return _postprocess(float(models.knn.predict(X_scaled)[0]))
         if model_name == "LSTM":
             if models.lstm is None:
                 return None
@@ -270,12 +279,21 @@ def run_hybrid_estimate(
     # Inverse-transform each model output before averaging (weighted mean in original scale)
     raw: dict[str, float] = {}
     try:
+        if models.svr is not None and weights.get("svr", 0) > 0:
+            v = float(models.svr.predict(X_scaled)[0])
+            raw["svr"] = math.expm1(v) if models.log_transform_target else v
         if models.lr is not None and weights.get("lr", 0) > 0:
             v = float(models.lr.predict(X_scaled)[0])
             raw["lr"] = math.expm1(v) if models.log_transform_target else v
+        if models.rf is not None and weights.get("rf", 0) > 0:
+            v = float(models.rf.predict(X_scaled)[0])
+            raw["rf"] = math.expm1(v) if models.log_transform_target else v
         if models.xgb is not None and weights.get("xgb", 0) > 0:
             v = float(models.xgb.predict(X_scaled)[0])
             raw["xgb"] = math.expm1(v) if models.log_transform_target else v
+        if models.knn is not None and weights.get("knn", 0) > 0:
+            v = float(models.knn.predict(X_scaled)[0])
+            raw["knn"] = math.expm1(v) if models.log_transform_target else v
         if models.lstm is not None and weights.get("lstm", 0) > 0:
             xt = torch.tensor(X_scaled, dtype=torch.float32).unsqueeze(1)
             with torch.no_grad():

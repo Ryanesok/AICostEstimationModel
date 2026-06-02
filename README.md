@@ -1,0 +1,145 @@
+# AI Cost Estimation Model
+
+Aplikasi desktop untuk estimasi effort pengembangan perangkat lunak menggunakan machine learning. Mendukung enam model prediksi (SVR, Linear Regression, Random Forest, XGBoost, LSTM, Hybrid) pada empat dataset historis yang telah terbukti di riset rekayasa perangkat lunak.
+
+---
+
+## Prerequisites
+
+- Python 3.11 atau lebih baru
+- pip (biasanya sudah tersedia bersama Python)
+- Dependensi utama (diinstall otomatis via `requirements.txt`):
+
+| Paket | Kegunaan |
+|---|---|
+| `customtkinter` | GUI framework |
+| `scikit-learn` | SVR, Linear Regression, Random Forest |
+| `xgboost` | XGBoost model |
+| `torch` (CPU) | LSTM model |
+| `pandas` / `numpy` | Data processing |
+| `matplotlib` | Chart visualisasi |
+| `pyyaml` | Konfigurasi dataset |
+| `joblib` | Serialisasi model |
+
+---
+
+## Setup & Cara Menjalankan
+
+### Langkah 1 — Install dependensi
+
+```bash
+pip install -r requirements.txt
+# Untuk torch CPU-only (lebih ringan):
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+```
+
+### Langkah 2 — Download dataset
+
+```bash
+python pipeline/downloader.py
+```
+
+Mengunduh empat file CSV ke folder `data/`: COCOMO-81, Desharnais, China, Maxwell.
+
+### Langkah 3 — Konfigurasi dataset (opsional)
+
+```bash
+python pipeline/build.py --configure
+```
+
+Mendeteksi kolom secara otomatis, memilih target, dan memeriksa kebocoran fitur. Hasilnya disimpan di `pipeline/dataset_config.yaml`. Langkah ini sudah memiliki default yang baik — lewati jika tidak ada kustomisasi.
+
+### Langkah 4 — Latih model
+
+```bash
+python pipeline/build.py --train
+```
+
+Melatih semua enam model untuk setiap dataset menggunakan 5-fold cross-validation. Model disimpan ke folder `models/`.
+
+> **Tip:** Jalankan `python pipeline/build.py` (tanpa flag) untuk menjalankan konfigurasi dan training sekaligus.
+
+### Langkah 5 — Jalankan aplikasi
+
+```bash
+python app.py
+```
+
+Membuka antarmuka grafis. Pilih dataset, isi form fitur, klik **Estimasi**.
+
+---
+
+## Model yang Tersedia
+
+| Model | Keterangan | Tuning |
+|---|---|---|
+| **SVR** | Support Vector Regression | GridSearchCV (C, epsilon, kernel) |
+| **Linear Regression** | Regresi linier OLS | — |
+| **Random Forest** | Ensemble 200 pohon | `n_estimators=200, random_state=42` |
+| **XGBoost** | Gradient boosting | GridSearchCV (n_estimators, max_depth, learning_rate) |
+| **LSTM** | Recurrent neural network 1 layer | Adam + MSE, early stopping (patience=20) |
+| **Hybrid** | Rata-rata berbobot LSTM + XGBoost + LR | Bobot = inverse CV MAE, dinormalisasi |
+
+Semua model dievaluasi dengan 5-fold CV. Metrik tersimpan di `models/<dataset>_metrics.json`.
+
+---
+
+## File Layout
+
+```
+AICostEstimationModel/
+│
+├── app.py                   # Antarmuka GUI (CustomTkinter)
+├── requirements.txt         # Dependensi Python
+│
+├── pipeline/                # Semua skrip non-UI (data & model)
+│   ├── __init__.py
+│   ├── build.py             # Konfigurasi + training (gabungan auto_configure & model_pipeline)
+│   ├── downloader.py        # Mengunduh dataset CSV
+│   ├── estimator.py         # Inferensi model (digunakan oleh app.py)
+│   ├── dataset_config.yaml  # Konfigurasi fitur, target, label, hint per dataset
+│   ├── field_labels.yaml    # Default label & hint
+│   └── datasets.txt         # Daftar URL dataset untuk downloader
+│
+├── data/                    # Dataset CSV (dihasilkan oleh pipeline/downloader.py)
+│   ├── COCOMO-81.csv
+│   ├── Desharnais.csv
+│   ├── china.csv
+│   └── maxwell.csv
+│
+├── models/                  # Model terlatih (dihasilkan oleh pipeline/build.py --train)
+│   ├── svr_<dataset>.pkl
+│   ├── linreg_<dataset>.pkl
+│   ├── rf_<dataset>.pkl
+│   ├── xgb_<dataset>.pkl
+│   ├── scaler_<dataset>.pkl
+│   ├── lstm_<dataset>.pt
+│   ├── lstm_arch_<dataset>.json
+│   └── <dataset>_metrics.json
+│
+├── docs/                    # Panduan & roadmap
+│   ├── roadmap.md
+│   ├── cocomo-81.md
+│   ├── desharnais.md
+│   ├── china.md
+│   └── maxwell.md
+│
+└── openspec/                # Dokumentasi perubahan (OpenSpec workflow)
+```
+
+---
+
+## Panduan Field Dataset
+
+Lihat folder `docs/` untuk panduan lengkap per dataset:
+
+- [docs/cocomo-81.md](docs/cocomo-81.md) — 16 field, effort dalam person-months
+- [docs/desharnais.md](docs/desharnais.md) — 5 field, effort dalam person-hours
+- [docs/china.md](docs/china.md) — 14 field, effort dalam person-hours
+- [docs/maxwell.md](docs/maxwell.md) — 25 field, effort dalam person-hours
+
+---
+
+## Roadmap
+
+Lihat [docs/roadmap.md](docs/roadmap.md) untuk ringkasan apa yang sudah dirilis, sedang dikerjakan, dan arah pengembangan ke depan.

@@ -36,20 +36,20 @@
   },
   "xgb_mmre": 0.599128538393889,
   "xgb_pred25": 0.2727272727272727,
-  "lstm_cv_mae_mean": 21.40525741082621,
-  "lstm_cv_rmse_mean": 46.84621809706293,
-  "lstm_cv_r2_mean": -0.004471796533304984,
+  "lstm_cv_mae_mean": 21.405256616002614,
+  "lstm_cv_rmse_mean": 46.846215382350735,
+  "lstm_cv_r2_mean": -0.004471680116148402,
   "lstm_best_params": {
     "hidden_size": 128,
     "num_layers": 2,
     "lr": 0.001
   },
-  "lstm_mmre": 0.5782993085740065,
+  "lstm_mmre": 0.578299277777494,
   "lstm_pred25": 0.29545454545454547,
   "hybrid_weights": {
-    "lstm": 0.3900785340815838,
-    "xgb": 0.5077147107838165,
-    "lr": 0.10220675513459973
+    "lstm": 0.39007854291596794,
+    "xgb": 0.5077147034298422,
+    "lr": 0.10220675365418991
   },
   "trained_on_rows": 48,
   "effort_unit": "person-months",

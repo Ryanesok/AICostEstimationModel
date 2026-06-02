@@ -1,0 +1,4 @@
+models/*.pt filter=lfs diff=lfs merge=lfs -text
+models/*.pkl filter=lfs diff=lfs merge=lfs -text
+models_bak/*.pt filter=lfs diff=lfs merge=lfs -text
+models_bak/*.pkl filter=lfs diff=lfs merge=lfs -text

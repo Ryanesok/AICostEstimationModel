@@ -87,3 +87,23 @@
 
 - [x] 14.1 `core/cost_calculator.py` — tambahkan field `actual_duration_months: float` ke `CostResult`; hitung sebagai `effort_pm / max(num_developers, 1)`
 - [x] 14.2 `ui/result_window.py` — di `_build_cost_strip()`, ganti tampilan "Team Needed: N devs" dengan dua baris: "Min. Team: N devs (untuk kejar deadline)" dan "Durasi Aktual: X.X bulan (dengan M devs)"
+
+## 15. Bug Fix — Dataset Baru Dipilih Tapi Tidak Didukung Aplikasi
+
+Dataset baru (nasa93, miyazaki94, pomodoro, promise_*) dilatih dan punya MAE lebih rendah sehingga dipilih oleh `select_best_estimator`. Namun aplikasi tidak punya feature builder untuk dataset tersebut — wizard mengembalikan `None`, main window menampilkan "Feature 1, Feature 2..." generik sebanyak jumlah fitur dataset (17 untuk nasa93). Fix: tambahkan filter `supported_stems` pada seleksi model agar hanya dataset yang sudah punya feature builder di bridge yang bisa dipilih sebagai best model.
+
+- [x] 15.1 `pipeline/estimator.py` — tambahkan parameter opsional `supported_stems: frozenset[str] | None = None` ke `select_best_estimator()`; setelah pool dibangun, jika `supported_stems` diberikan dan ada kandidat yang stem-nya ada di dalamnya, filter pool hanya ke kandidat tersebut; jika tidak ada yang lolos filter, gunakan pool semula (fallback agar app tetap berjalan)
+- [x] 15.2 `core/estimator_bridge.py` — tambahkan konstanta `SUPPORTED_STEMS: frozenset[str] = frozenset(_FEATURE_BUILDERS.keys())`; update fungsi `estimate()` agar memanggil `select_best_estimator(mdir, supported_stems=SUPPORTED_STEMS)` sehingga bridge hanya memilih dataset yang punya feature builder
+- [x] 15.3 `app.py` — impor `SUPPORTED_STEMS` dari `core.estimator_bridge`; update pemanggilan `select_best_estimator(MODELS_DIR)` di `__init__` menjadi `select_best_estimator(MODELS_DIR, supported_stems=SUPPORTED_STEMS)` agar main window juga tidak memilih dataset yang tidak dikonfigurasi
+- [x] 15.4 Verifikasi — jalankan `python -c "from pipeline.estimator import select_best_estimator; from core.estimator_bridge import SUPPORTED_STEMS; r = select_best_estimator('models', supported_stems=SUPPORTED_STEMS); print(r.stem, r.model_name)"` dan konfirmasi hasilnya adalah stem dari dataset yang didukung (desharnais / china / kitchenham / subbiah / isbsg10 / kemerer)
+
+## 16. Rewrite Best Estimator — 75% Confidence Gate
+
+Seleksi model saat ini hanya mempertimbangkan MAE (error) sebagai kriteria utama. Ini mengabaikan apakah model benar-benar dapat diandalkan untuk memprediksi dalam batas 25% error (PRED25 ≥ 0.75). Dataset baru (nasa93, promise_*) menunjukkan PRED25 ≥ 0.97 sementara dataset lama yang didukung hanya mencapai 0.68 di isbsg10. Solusi: ubah urutan prioritas seleksi — confidence gate (PRED25 ≥ 0.75) menjadi filter utama; jika ada kandidat yang lolos, pilih berdasarkan MAE dari kandidat tersebut; jika tidak ada yang lolos, fallback ke pool sebelumnya. Sekaligus tambahkan feature builders untuk dataset baru berkonfidenssi tinggi agar dapat dipilih oleh aplikasi.
+
+- [x] 16.1 `pipeline/estimator.py` — tambahkan konstanta `CONFIDENCE_THRESHOLD = 0.75`; tambahkan parameter `min_pred25: float = 0.0` ke `select_best_estimator()`; setelah filter `supported_stems`, buat `confident_pool = [c for c in pool if c.pred25 is not None and c.pred25 >= min_pred25]`; gunakan `confident_pool` sebagai pool jika tidak kosong, fallback ke pool sebelumnya jika kosong
+- [x] 16.2 `core/estimator_bridge.py` — impor `CONFIDENCE_THRESHOLD` dari `pipeline.estimator`; update pemanggilan `select_best_estimator` agar meneruskan `min_pred25=CONFIDENCE_THRESHOLD`
+- [x] 16.3 `app.py` — impor `CONFIDENCE_THRESHOLD` dari `pipeline.estimator`; update pemanggilan `select_best_estimator` agar meneruskan `min_pred25=CONFIDENCE_THRESHOLD`
+- [x] 16.4 `core/estimator_bridge.py` — tambahkan feature builder `_features_nasa93(pm)` yang memetakan PMInput ke 17 fitur nasa93; fix `pipeline/dataset_config.yaml` (target=act_effort bukan time, features tanpa act_effort dengan time); nasa93 BELUM ditambahkan ke SUPPORTED_STEMS karena model existing dilatih dengan config salah — perlu retrain
+- [x] 16.5 `core/estimator_bridge.py` — promise_* DIKECUALIKAN: dataset ini memprediksi metrik kode (LOC, operators, Halstead n), bukan effort; target mereka bukan person-hours/months sehingga tidak relevan untuk estimasi effort
+- [x] 16.6 Verifikasi — fallback berfungsi benar: tidak ada supported dataset yang mencapai pred25 ≥ 0.75 (tertinggi: isbsg10/SVR=0.6757); confidence gate memicu fallback ke kitchenham Random Forest (pred25=0.62, MAE terbaik di antara supported stems)

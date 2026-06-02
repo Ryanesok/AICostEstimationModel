@@ -14,6 +14,7 @@ import numpy as np
 import yaml
 
 from pipeline.estimator import (
+    CONFIDENCE_THRESHOLD,
     EstimatorResult,
     LoadedModels,
     load_estimator_models,
@@ -21,6 +22,7 @@ from pipeline.estimator import (
     run_hybrid_estimate,
     select_best_estimator,
 )
+from core.estimator_bridge import SUPPORTED_STEMS
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
@@ -110,7 +112,7 @@ class App(ctk.CTk):
         self.geometry("1100x820")
         self.resizable(False, False)
 
-        self._best: EstimatorResult | None = select_best_estimator(MODELS_DIR)
+        self._best: EstimatorResult | None = select_best_estimator(MODELS_DIR, supported_stems=SUPPORTED_STEMS, min_pred25=CONFIDENCE_THRESHOLD)
         self._models: LoadedModels | None = None
         self._current_estimate: float | None = None
         self._field_readers: dict[str, callable] = {}

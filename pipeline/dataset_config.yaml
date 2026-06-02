@@ -53,13 +53,15 @@ datasets:
       AFP: 'Adjusted Function Points setelah faktor penyesuaian. Contoh: 215'
       Input: 'External Inputs — jumlah proses input dari luar sistem. Contoh: 10'
       Output: 'External Outputs — jumlah proses output ke luar sistem. Contoh: 8'
-      Enquiry: 'External Enquiries — jumlah query input-output tanpa transformasi. Contoh: 12'
+      Enquiry: 'External Enquiries — jumlah query input-output tanpa transformasi.
+        Contoh: 12'
       File: 'Internal Logical Files — file yang dikelola oleh sistem. Contoh: 5'
       Interface: 'External Interface Files — file dari sistem eksternal. Contoh: 3'
       Added: 'Function Points yang ditambahkan (proyek enhancement). Contoh: 50'
       Changed: 'Function Points yang dimodifikasi (proyek enhancement). Contoh: 30'
       Deleted: 'Function Points yang dihapus (proyek enhancement). Contoh: 10'
-      Resource: 'Jumlah resource/anggota tim: 1=kecil | 2=sedang | 3=besar | 4=sangat besar'
+      Resource: 'Jumlah resource/anggota tim: 1=kecil | 2=sedang | 3=besar | 4=sangat
+        besar'
     effort_unit: person-hours
   kitchenham:
     features:
@@ -74,8 +76,10 @@ datasets:
       Adjusted.function.points: Adjusted Function Points (AFP)
       First.estimate: Estimasi Awal Effort (person-hours)
     hints:
-      Adjusted.function.points: 'Jumlah Function Points yang sudah disesuaikan (AFP). Contoh: 250'
-      First.estimate: 'Estimasi effort awal sebelum proyek dimulai, dalam person-hours. Contoh: 1500'
+      Adjusted.function.points: 'Jumlah Function Points yang sudah disesuaikan (AFP).
+        Contoh: 250'
+      First.estimate: 'Estimasi effort awal sebelum proyek dimulai, dalam person-hours.
+        Contoh: 1500'
     effort_unit: person-hours
     secondary_target: Duration
   subbiah:
@@ -127,8 +131,8 @@ datasets:
     hints:
       FS: 'Ukuran fungsional proyek dalam Function Points. Contoh: 150'
       N_PDR: 'Normalized Project Delivery Rate (effort per FP). Contoh: 5.0'
-      Resource_Level: 'Tingkat resource tim: 1=sangat kecil | 2=kecil | 3=sedang | 4=besar
-        | 5=sangat besar'
+      Resource_Level: 'Tingkat resource tim: 1=sangat kecil | 2=kecil | 3=sedang |
+        4=besar | 5=sangat besar'
   kemerer:
     features:
     - Hardware
@@ -153,3 +157,201 @@ datasets:
       AdjFP: 'Adjusted Function Points setelah faktor penyesuaian. Contoh: 900'
       RAWFP: 'Unadjusted (Raw) Function Points sebelum adjustment. Contoh: 850'
       Duration: 'Durasi proyek dalam bulan kalender. Contoh: 14'
+  ebspm:
+    features:
+    - Project_ID
+    - Year_technical_go_live
+    - Functional_size_FP
+    - Actual_duration_months
+    - Actual_cost_EUR
+    - Release_based_working
+    - Once_only_project
+    - Multi_application_release
+    - Phased_project
+    - Dependencies_with_other_applications
+    - Single_application
+    - Migration_project
+    - Package_with_customization
+    - Fixed_experienced_team
+    - Technology_driven_project
+    - Rules_and_regulations_driven_project
+    - Business_driven_project
+    target: Steady_heartbeat
+    log_transform_target: true
+    clip_outliers: false
+  miyazaki94:
+    features:
+    - KLOC
+    - FORM
+    - FILE
+    - ESCRN
+    - EFORM
+    - EFILE
+    - MM
+    target: SCRN
+    log_transform_target: true
+    clip_outliers: false
+  nasa93:
+    features:
+    - mode
+    - rely
+    - data
+    - cplx
+    - stor
+    - virt
+    - turn
+    - acap
+    - aexp
+    - pcap
+    - vexp
+    - lexp
+    - modp
+    - tool
+    - sced
+    - equivphyskloc
+    - act_effort
+    target: time
+    log_transform_target: true
+    clip_outliers: false
+    labels:
+      rely: Reliability (Rely)
+      data: Database Size (Data)
+      cplx: Complexity (Cplx)
+      time: Execution Time Constraint (Time)
+      stor: Storage Constraint (Stor)
+      virt: Virtual Machine Volatility (Virt)
+      turn: Computer Turnaround (Turn)
+      acap: Analyst Capability (Acap)
+      aexp: Application Experience (Aexp)
+      pcap: Programmer Capability (Pcap)
+      vexp: VM Experience (Vexp)
+      lexp: Language Experience (Lexp)
+      modp: Modern Programming Practices (Modp)
+      tool: Software Tools (Tool)
+      sced: Schedule Constraint (Sced)
+      equivphyskloc: Ukuran Sistem (KLOC)
+    hints:
+      rely: 'Reliabilitas: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh | 6=xh'
+      data: 'Ukuran DB relatif: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh | 6=xh'
+      cplx: 'Kompleksitas produk: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh | 6=xh'
+      time: 'Batasan waktu eksekusi: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh | 6=xh'
+      stor: 'Batasan memori: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh | 6=xh'
+      virt: 'Volatilitas VM: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh | 6=xh'
+      turn: 'Turnaround komputer: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh | 6=xh'
+      acap: 'Kemampuan analis: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh'
+      aexp: 'Pengalaman aplikasi: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh'
+      pcap: 'Kemampuan programmer: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh'
+      vexp: 'Pengalaman VM: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh'
+      lexp: 'Pengalaman bahasa: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh'
+      modp: 'Praktik pemrograman modern: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh'
+      tool: 'Alat bantu software: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh'
+      sced: 'Jadwal: 1=vl | 2=l | 3=n (nominal) | 4=h | 5=vh'
+      equivphyskloc: 'Ukuran sistem dalam KLOC (ribuan baris kode). Contoh: 25.9'
+    effort_unit: person-months
+  pomodoro:
+    features:
+    - description
+    - DONE
+    - estimate
+    target: actual
+    log_transform_target: true
+    clip_outliers: false
+  promise_cm1:
+    features:
+    - loc
+    - v(g)
+    - ev(g)
+    - iv(g)
+    - l
+    - d
+    - i
+    - e
+    - t
+    - lOCode
+    - lOComment
+    - lOBlank
+    - uniq_Op
+    - uniq_Opnd
+    - branchCount
+    target: n
+    log_transform_target: true
+    clip_outliers: false
+  promise_jm1:
+    features:
+    - loc
+    - v(g)
+    - ev(g)
+    - iv(g)
+    - n
+    - l
+    - d
+    - i
+    - e
+    - t
+    - lOComment
+    - lOBlank
+    - locCodeAndComment
+    - uniq_Op
+    - uniq_Opnd
+    - total_Op
+    - total_Opnd
+    - branchCount
+    target: lOCode
+    log_transform_target: true
+    clip_outliers: false
+  promise_kc1:
+    features:
+    - loc
+    - v(g)
+    - ev(g)
+    - iv(g)
+    - l
+    - d
+    - i
+    - e
+    - t
+    - lOComment
+    - lOBlank
+    - locCodeAndComment
+    - uniq_Op
+    - uniq_Opnd
+    - branchCount
+    target: n
+    log_transform_target: true
+    clip_outliers: false
+  promise_kc2:
+    features:
+    - ev(g)
+    - l
+    - d
+    - i
+    - e
+    - t
+    - lOComment
+    - lOBlank
+    - lOCodeAndComment
+    - uniq_Op
+    target: loc
+    log_transform_target: true
+    clip_outliers: false
+  promise_pc1:
+    features:
+    - loc
+    - v(g)
+    - ev(g)
+    - iv(G)
+    - L
+    - D
+    - I
+    - E
+    - T
+    - lOCode
+    - lOComment
+    - locCodeAndComment
+    - lOBlank
+    - uniq_Op
+    - uniq_Opnd
+    - branchCount
+    target: total_Op
+    log_transform_target: true
+    clip_outliers: false

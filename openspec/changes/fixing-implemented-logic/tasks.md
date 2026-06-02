@@ -75,5 +75,15 @@
 - [x] 11.1 Jalankan `python model_pipeline.py` — konfirmasi semua 4 dataset berhasil dilatih dan file `models/<stem>_metrics.json` terbuat
 - [x] 11.2 Periksa isi salah satu `_metrics.json` — konfirmasi berisi `cv_mae_mean`, `best_svr_params`, `trained_on_rows`
 - [x] 11.3 Jalankan `python auto_configure.py` — konfirmasi backfill labels/hints/effort_unit diterapkan ke semua 4 dataset yang ada di config
-- [ ] 11.4 Jalankan `python auto_configure.py` pada dataset baru dengan kolom mencurigakan — konfirmasi warning leakage muncul dan defaults digunakan jika user melewati labels
-- [ ] 11.5 Jalankan `python app.py` — konfirmasi aplikasi berjalan normal dan label kolom tampil dengan benar
+- [x] 11.4 Jalankan `python auto_configure.py` pada dataset baru dengan kolom mencurigakan — konfirmasi warning leakage muncul dan defaults digunakan jika user melewati labels
+- [x] 11.5 Jalankan `python app.py` — konfirmasi aplikasi berjalan normal dan label kolom tampil dengan benar
+
+## 13. Bug Fix — Model Selection Bias (isbsg10 selalu menang)
+
+- [x] 13.1 `pipeline/estimator.py` — tambahkan konstanta `MIN_TRAINING_ROWS = 50`; di `select_best_estimator()`, filter `candidates` agar hanya dataset dengan `trained_on_rows >= MIN_TRAINING_ROWS` yang dipertimbangkan; jika semua dataset di bawah threshold, fallback ke semua kandidat
+- [x] 13.2 `pipeline/estimator.py` — tambahkan field `trained_on_rows` ke filtering log (print info model yang dipilih beserta jumlah baris training-nya saat debug)
+
+## 14. Bug Fix — `team_needed` Selalu = 1
+
+- [x] 14.1 `core/cost_calculator.py` — tambahkan field `actual_duration_months: float` ke `CostResult`; hitung sebagai `effort_pm / max(num_developers, 1)`
+- [x] 14.2 `ui/result_window.py` — di `_build_cost_strip()`, ganti tampilan "Team Needed: N devs" dengan dua baris: "Min. Team: N devs (untuk kejar deadline)" dan "Durasi Aktual: X.X bulan (dengan M devs)"

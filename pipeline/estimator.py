@@ -11,6 +11,7 @@ import torch.nn as nn
 
 HOURS_PER_MONTH = 160
 MIN_TRAINING_ROWS = 50
+CONFIDENCE_THRESHOLD = 0.75  # minimum PRED(25) for a model to be considered high-confidence
 
 _MODEL_MAE_KEYS: dict[str, str] = {
     "SVR": "cv_mae_mean",
@@ -92,14 +93,19 @@ def _to_person_months(value: float, unit: str) -> float:
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def select_best_estimator(metrics_dir: str) -> EstimatorResult | None:
-    """Read all *_metrics.json files and return the best dataset/model pair by CV MAE
-    (normalized to person-months). MMRE is used as a tiebreaker within 1% MAE.
+def select_best_estimator(
+    metrics_dir: str,
+    supported_stems: frozenset[str] | None = None,
+    min_pred25: float = 0.0,
+) -> EstimatorResult | None:
+    """Read all *_metrics.json files and return the best dataset/model pair.
 
-    Datasets with fewer than MIN_TRAINING_ROWS rows are excluded from selection to
-    prevent small datasets (e.g. isbsg10 with 37 rows) from winning via artificially
-    low MAE that doesn't generalise. If all datasets fall below the threshold the
-    filter is lifted so the app remains functional.
+    Selection priority (each step falls back to the previous pool if empty):
+    1. Remove datasets below MIN_TRAINING_ROWS to avoid overfitting on tiny data.
+    2. Restrict to supported_stems when given (app-level filter for registered datasets).
+    3. Apply confidence gate: keep only candidates with PRED(25) >= min_pred25.
+    4. Among remaining candidates, sort by CV MAE (person-months); use MMRE as a
+       tiebreaker within a 1% MAE band.
     """
     files = glob.glob(os.path.join(metrics_dir, "*_metrics.json"))
     if not files:
@@ -140,6 +146,20 @@ def select_best_estimator(metrics_dir: str) -> EstimatorResult | None:
     # Prefer datasets with enough training rows; fall back to all if none qualify.
     qualified = [c for c in candidates if c.trained_on_rows >= MIN_TRAINING_ROWS]
     pool = qualified if qualified else candidates
+
+    # Restrict to supported stems when caller provides a filter; fall back to full
+    # pool if no candidates match so the app stays functional.
+    if supported_stems:
+        supported_pool = [c for c in pool if c.stem in supported_stems]
+        if supported_pool:
+            pool = supported_pool
+
+    # Confidence gate: prefer models with PRED(25) >= min_pred25.
+    # Falls back to full pool if no candidate meets the threshold.
+    if min_pred25 > 0:
+        confident_pool = [c for c in pool if c.pred25 is not None and c.pred25 >= min_pred25]
+        if confident_pool:
+            pool = confident_pool
 
     pool.sort(key=lambda r: r.cv_mae_pm)
     best = pool[0]

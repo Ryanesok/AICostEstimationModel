@@ -16,6 +16,7 @@ import numpy as np
 
 from core.schema import PMInput
 from pipeline.estimator import (
+    CONFIDENCE_THRESHOLD,
     EstimatorResult,
     load_estimator_models,
     run_estimate,
@@ -184,6 +185,91 @@ def _features_kemerer(pm: PMInput) -> list[float]:
     return [hardware, ksloc, afp, raw_fp]
 
 
+def _features_nasa93(pm: PMInput) -> list[float]:
+    """nasa93 features (COCOMO-II cost drivers), order matches training data:
+    [mode, rely, data, cplx, time, stor, virt, turn, acap, aexp, pcap, vexp,
+     lexp, modp, tool, sced, equivphyskloc]
+
+    COCOMO ordinal multipliers are mapped from PMInput categoricals.
+    Constraints without a direct PMInput proxy use their nominal (1.0) value.
+    """
+    # mode: 1=organic (simple, small team), 2=semi-detached, 3=embedded (complex)
+    _mode_map = {"low": 1.0, "medium": 2.0, "high": 3.0}
+    mode = _mode_map[pm.feature_complexity]
+
+    # Personnel rating multipliers (lower = more capable)
+    _acap_map = {"junior": 1.00, "mid": 0.86, "senior": 0.71, "mixed": 0.86}
+    _aexp_map = {"junior": 1.13, "mid": 1.00, "senior": 0.91, "mixed": 1.00}
+    _pcap_map = {"junior": 1.17, "mid": 0.86, "senior": 0.70, "mixed": 0.86}
+    _vexp_map = {"low": 1.10, "medium": 1.00, "high": 0.90}
+    _lexp_map = {"low": 1.07, "medium": 1.00, "high": 0.95}
+
+    # rely: required reliability (security level as proxy)
+    _rely_map = {"basic": 0.88, "standard": 1.00, "high": 1.15}
+    rely = _rely_map[pm.security_level]
+
+    # cplx: product complexity
+    _cplx_map = {"low": 0.85, "medium": 1.15, "high": 1.65}
+    cplx = _cplx_map[pm.feature_complexity]
+
+    # sced: required development schedule constraint
+    # (shorter deadline relative to nominal → higher multiplier)
+    sced = 1.08 if pm.deadline_months < 6 else (1.04 if pm.deadline_months < 12 else 1.00)
+
+    # equivphyskloc: estimated size (features × complexity_factor × 1.5K LoC per feature)
+    kloc = pm.num_features * _COMPLEXITY_SCORE[pm.feature_complexity] * 1.5
+
+    return [
+        mode,                           # mode
+        rely,                           # rely
+        1.00,                           # data (nominal — no PMInput proxy)
+        cplx,                           # cplx
+        1.00,                           # time (nominal)
+        1.00,                           # stor (nominal)
+        1.00,                           # virt (nominal)
+        1.00,                           # turn (nominal)
+        _acap_map[pm.seniority],        # acap
+        _aexp_map[pm.seniority],        # aexp
+        _pcap_map[pm.seniority],        # pcap
+        _vexp_map[pm.stack_experience], # vexp
+        _lexp_map[pm.stack_experience], # lexp
+        1.00,                           # modp (nominal)
+        1.00,                           # tool (nominal)
+        sced,                           # sced
+        kloc,                           # equivphyskloc
+    ]
+
+
+def _features_miyazaki94(pm: PMInput) -> list[float]:
+    """miyazaki94 features: [KLOC, SCRN, FORM, FILE, ESCRN, EFORM, EFILE]
+
+    48 Japanese government MIS projects. All features are size/function-count
+    metrics; MM (man-months) is the effort target.
+
+    KLOC  <- features x complexity x 1.5 (same proxy as kemerer)
+    SCRN  <- num_features (one screen per feature/use-case)
+    FORM  <- num_features x 0.5 (forms ≈ half of screens)
+    FILE  <- num_features x 0.3 (master files ≈ 30% of features)
+    ESCRN <- SCRN x 8  (equivalent count after complexity adjustment)
+    EFORM <- FORM x 8
+    EFILE <- FILE x 8
+    """
+    complexity = _COMPLEXITY_SCORE[pm.feature_complexity]
+    kloc = pm.num_features * complexity * 1.5
+    scrn = float(pm.num_features)
+    form = pm.num_features * 0.5
+    file_ = pm.num_features * 0.3
+    return [
+        kloc,        # KLOC
+        scrn,        # SCRN
+        form,        # FORM
+        file_,       # FILE
+        scrn * 8.0,  # ESCRN
+        form * 8.0,  # EFORM
+        file_ * 8.0, # EFILE
+    ]
+
+
 _FEATURE_BUILDERS: dict[str, callable] = {
     "desharnais": _features_desharnais,
     "china": _features_china,
@@ -191,7 +277,11 @@ _FEATURE_BUILDERS: dict[str, callable] = {
     "subbiah": _features_subbiah,
     "isbsg10": _features_isbsg10,
     "kemerer": _features_kemerer,
+    "nasa93": _features_nasa93,
+    "miyazaki94": _features_miyazaki94,
 }
+
+SUPPORTED_STEMS: frozenset[str] = frozenset(_FEATURE_BUILDERS.keys())
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -202,7 +292,7 @@ def estimate(pm_input: PMInput, models_dir: str | None = None) -> BridgeResult |
     Returns None if no trained models are found or prediction fails.
     """
     mdir = models_dir or os.path.normpath(_MODELS_DIR)
-    best = select_best_estimator(mdir)
+    best = select_best_estimator(mdir, supported_stems=SUPPORTED_STEMS, min_pred25=CONFIDENCE_THRESHOLD)
     if best is None:
         return None
 
